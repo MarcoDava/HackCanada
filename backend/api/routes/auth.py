@@ -13,10 +13,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 oauth = OAuth()
 
 oauth.register(
-    name="google",
-    client_id=settings.google_client_id,
-    client_secret=settings.google_client_secret,
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    name="auth0",
+    client_id=settings.auth0_client_id,
+    client_secret=settings.auth0_client_secret,
+    server_metadata_url=f"https://{settings.auth0_domain}/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
 
@@ -41,19 +41,19 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-@router.get("/google/login")
-async def google_login(request: Request):
-    redirect_uri = request.url_for("google_callback")
-    return await oauth.google.authorize_redirect(request, redirect_uri, prompt="select_account")
+@router.get("/login")
+async def login(request: Request):
+    redirect_uri = request.url_for("auth_callback")
+    return await oauth.auth0.authorize_redirect(request, redirect_uri)
 
 
-@router.get("/google/callback", name="google_callback")
-async def google_callback(request: Request):
-    token = await oauth.google.authorize_access_token(request)
-    user_info = token["userinfo"]
+@router.get("/callback", name="auth_callback")
+async def auth_callback(request: Request):
+    token = await oauth.auth0.authorize_access_token(request)
+    user_info = token.get("userinfo") or {}
 
     user = {
-        "email": user_info["email"],
+        "email": user_info.get("email", ""),
         "name": user_info.get("name", ""),
         "picture": user_info.get("picture", ""),
     }
