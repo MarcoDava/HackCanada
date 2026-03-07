@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import axios from "axios"
 import { 
   Waypoints, Home, Users, Upload, Settings, Search,
-  Building2, ArrowUpRight, Filter, SortAsc, ChevronRight, Loader2
+  Building2, ArrowUpRight, Filter, SortAsc, ChevronRight, ChevronLeft, Loader2
 } from "lucide-react"
 import Sidebar from "@/components/Sidebar"
 
@@ -29,37 +29,64 @@ export default function ConnectionsPage() {
   const [filterCompany, setFilterCompany] = useState<string | null>(null)
   const [connections, setConnections] = useState<Connection[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [companies, setCompanies] = useState<string[]>([])
+  const pageSize = 25
+
+  const fetchConnections = async () => {
+    setLoading(true)
+    const userId = localStorage.getItem("user_id") || ""
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    try {
+      const res = await axios.get(`${API_URL}/api/graph/connections`, {
+        params: {
+          user_id: userId,
+          page: currentPage,
+          page_size: pageSize,
+          search: searchQuery || undefined,
+          company: filterCompany || undefined
+        }
+      })
+      setConnections(res.data.connections || [])
+      setTotalCount(res.data.total_count || 0)
+    } catch (e) {
+      console.error("Failed to fetch connections:", e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCompanies = async () => {
+    const userId = localStorage.getItem("user_id") || ""
+    if (!userId) return
+    try {
+      const res = await axios.get(`${API_URL}/api/graph/companies`, {
+        params: { user_id: userId }
+      })
+      setCompanies(res.data || [])
+    } catch (e) {
+      console.error("Failed to fetch companies:", e)
+    }
+  }
 
   useEffect(() => {
-    const fetchConnections = async () => {
-      const userId = localStorage.getItem("user_id") || ""
-      if (!userId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const res = await axios.get(`${API_URL}/api/graph/connections`, {
-          params: { user_id: userId }
-        })
-        setConnections(res.data.connections || [])
-      } catch (e) {
-        console.error("Failed to fetch connections:", e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchConnections()
+    fetchCompanies()
   }, [])
 
-  const companies = Array.from(new Set(connections.map(c => c.company).filter(Boolean)))
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchConnections()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [currentPage, searchQuery, filterCompany])
 
-  const filteredConnections = connections.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (c.title || "").toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = !filterCompany || c.company === filterCompany
-    return matchesSearch && matchesFilter
-  })
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterCompany])
 
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
@@ -71,7 +98,7 @@ export default function ConnectionsPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-white mb-2">Connections</h1>
-                <p className="text-zinc-400">{loading ? "Loading..." : `${connections.length} people in your network`}</p>
+                <p className="text-zinc-400">{loading ? "Loading..." : `${totalCount} people in your network`}</p>
               </div>
 
               <div className="flex gap-3">
@@ -85,7 +112,7 @@ export default function ConnectionsPage() {
                     className="bg-dark-surface border border-dark-glassBorder rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 w-64 focus:outline-none focus:border-brand-500 transition-colors"
                   />
                 </div>
-                
+
                 <div className="relative">
                   <select
                     value={filterCompany || ""}
@@ -112,14 +139,19 @@ export default function ConnectionsPage() {
               <div className="col-span-3">Company</div>
               <div className="col-span-2">Degree</div>
               <div className="col-span-2">Role</div>
-              <div className="col-span-1"></div>
+                <div className="col-span-1"></div>
             </div>
 
             <div className="divide-y divide-dark-glassBorder">
-              {filteredConnections.length > 0 ? (
-                filteredConnections.map((connection) => (
-                  <div 
-                    key={connection.id} 
+              {loading ? (
+                <div className="px-6 py-24 text-center">
+                  <Loader2 className="w-10 h-10 text-brand-500 animate-spin mx-auto mb-4" />
+                  <p className="text-zinc-400">Loading connections...</p>
+                </div>
+              ) : connections.length > 0 ? (
+                connections.map((connection) => (
+                  <div
+                    key={connection.id}
                     className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-dark-elevated/50 transition-colors group"
                   >
                     <div className="col-span-4">
@@ -187,17 +219,30 @@ export default function ConnectionsPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-6 px-2">
-            <p className="text-sm text-zinc-500">
-              Showing {filteredConnections.length} of {connections.length} connections
+          <div className="flex flex-col md:flex-row items-center justify-between mt-6 px-2 gap-4 pb-12">
+            <div className="flex items-center gap-4 order-2 md:order-1">
+              <button 
+                disabled={currentPage === 1 || loading}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40 h-10"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </button>
+              <span className="text-sm text-zinc-500 font-medium whitespace-nowrap">
+                Page {currentPage} of {Math.ceil(totalCount / pageSize) || 1}
+              </span>
+              <button 
+                disabled={currentPage >= Math.ceil(totalCount / pageSize) || loading}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40 h-10"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-zinc-500 order-1 md:order-2">
+              Showing {connections.length} of {totalCount} connections
             </p>
-            <Link
-              href="/upload"
-              className="inline-flex items-center gap-2 text-sm text-brand-400 hover:text-brand-300 transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              Import more connections
-            </Link>
           </div>
         </div>
       </main>

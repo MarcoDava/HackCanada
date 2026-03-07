@@ -5,25 +5,72 @@ from services.graph.builder import make_id
 router = APIRouter()
 
 @router.get("/connections")
-def get_connections(user_id: str = Query(...)):
-    """Returns all 1st-degree connections for the user."""
-    results = db.run("""
-        MATCH (u:Person {id: $user_id})-[:KNOWS]->(p:Person)
+def get_connections(
+    user_id: str = Query(...),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    search: str = Query(None),
+    company: str = Query(None)
+):
+    """Returns paginated 1st-degree connections for the user."""
+    skip = (page - 1) * page_size
+    
+    # Base pattern
+    match_clause = "MATCH (u:Person {id: $user_id})-[:KNOWS]->(p:Person)"
+    where_clauses = []
+    params = {"user_id": user_id, "skip": skip, "limit": page_size}
+    
+    if search:
+        where_clauses.append("(toLower(p.name) CONTAINS toLower($search) OR toLower(p.title) CONTAINS toLower($search))")
+        params["search"] = search
+    
+    if company:
+        # Check if the person works at this specific company
+        where_clauses.append("EXISTS { (p)-[:WORKS_AT]->(:Company {name: $company}) }")
+        params["company"] = company
+        
+    where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    
+    # 1. Get total count
+    count_query = f"{match_clause}{where_str} RETURN count(p) as total"
+    count_result = db.run(count_query, **params)
+    total_count = count_result[0]["total"] if count_result else 0
+    
+    # 2. Get paginated results
+    results_query = f"""
+        {match_clause}{where_str}
         OPTIONAL MATCH (p)-[:WORKS_AT]->(c:Company)
         RETURN p, c
         ORDER BY p.name
-        LIMIT 500
-    """, user_id=user_id)
+        SKIP $skip
+        LIMIT $limit
+    """
+    results = db.run(results_query, **params)
 
     connections = []
     for r in results:
         person = dict(r["p"])
-        company = dict(r["c"]) if r.get("c") else {}
-        person["company"] = company.get("name", "")
+        company_node = dict(r["c"]) if r.get("c") else {}
+        person["company"] = company_node.get("name", "")
         person["degree"] = "1st"
         connections.append(person)
 
-    return {"connections": connections, "total": len(connections)}
+    return {
+        "connections": connections,
+        "total_count": total_count,
+        "page": page,
+        "page_size": page_size
+    }
+
+@router.get("/companies")
+def get_user_companies(user_id: str = Query(...)):
+    """Returns all unique companies for the user's 1st-degree connections."""
+    results = db.run("""
+        MATCH (u:Person {id: $user_id})-[:KNOWS]->(p:Person)-[:WORKS_AT]->(c:Company)
+        RETURN DISTINCT c.name as name
+        ORDER BY name
+    """, user_id=user_id)
+    return [r["name"] for r in results]
 
 @router.get("/stats")
 def get_stats(user_id: str = Query(...)):
