@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -20,7 +20,7 @@ interface MetricBarProps {
 }
 
 
-function MetricBar({ icon, label, value, target, percentage, color }: MetricBarProps) {
+function MetricBar({ icon, label, value, target, percentage, color, barColor }: MetricBarProps & { barColor: string }) {
   return (
     <div className="bg-dark-surface rounded-2xl p-4">
       <div className="flex items-center gap-3 mb-3">
@@ -35,7 +35,7 @@ function MetricBar({ icon, label, value, target, percentage, color }: MetricBarP
       </div>
       <div className="h-1.5 bg-dark-elevated rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${color.replace('bg-', 'bg-').replace('/20', '')}`}
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -89,47 +89,109 @@ export default function Dashboard() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const getAuthAxios = useAuthenticatedAxios()
   const [currentMonth] = useState(new Date())
-  const [activeTime, setActiveTime] = useState("00:00:00")
-  const [pathsFound, setPathsFound] = useState(0)
-  const [bestDay, setBestDay] = useState(new Date().toLocaleDateString())
+  const [activeSeconds, setActiveSeconds] = useState(0)
+  const [connectionsMade, setConnectionsMade] = useState(0)
+  const [bestDay, setBestDay] = useState("—")
   const [messagesSent, setMessagesSent] = useState(0)
-  const [responseRate, setResponseRate] = useState(0)
+  const [connectionsVisited, setConnectionsVisited] = useState(0)
+  const [companiesVisited, setCompaniesVisited] = useState(0)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [connectionHeatmap, setConnectionHeatmap] = useState<Record<number, number>>({})
+  const [weeklyData, setWeeklyData] = useState<{ day: string; height: number; isActive?: boolean }[]>(
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => ({ day: d, height: 0 }))
+  )
+  const activeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Active time tracking – counts seconds while the page is visible
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveTime(new Date().toLocaleTimeString())
-    }, 1000)
-    return () => clearInterval(interval)
+    const tick = () => setActiveSeconds(s => s + 1)
+    const start = () => { if (!activeTimerRef.current) activeTimerRef.current = setInterval(tick, 1000) }
+    const stop = () => { if (activeTimerRef.current) { clearInterval(activeTimerRef.current); activeTimerRef.current = null } }
+
+    start()
+    const onVis = () => (document.hidden ? stop() : start())
+    document.addEventListener("visibilitychange", onVis)
+    return () => { stop(); document.removeEventListener("visibilitychange", onVis) }
   }, [])
 
-  // Fetch real message stats
+  const formatTime = (s: number) => {
+    const h = Math.floor(s / 3600).toString().padStart(2, "0")
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0")
+    const sec = (s % 60).toString().padStart(2, "0")
+    return `${h}:${m}:${sec}`
+  }
+
+  // Fetch real stats
   useEffect(() => {
     if (!isAuthenticated || authLoading) return
     async function fetchStats() {
       try {
         const axios = await getAuthAxios()
-        const res = await axios.get("/api/messages/stats")
-        setMessagesSent(res.data.messages_sent || 0)
+        const [messagesRes, visitsRes, dailyRes] = await Promise.all([
+          axios.get("/api/messages/stats"),
+          axios.get("/api/messages/visit-stats"),
+          axios.get("/api/messages/daily-visits"),
+        ])
+        setMessagesSent(messagesRes.data.messages_sent || 0)
+        setConnectionsVisited(visitsRes.data.connections_visited || 0)
+        setCompaniesVisited(visitsRes.data.companies_visited || 0)
+
+        // Heatmap
+        const daily: Record<string, number> = dailyRes.data.daily || {}
+        const heatmap: Record<number, number> = {}
+        let totalMonth = 0
+        let maxCount = 0
+        let maxDay = 0
+        for (const [dayStr, count] of Object.entries(daily)) {
+          const d = parseInt(dayStr, 10)
+          heatmap[d] = count as number
+          totalMonth += count as number
+          if ((count as number) > maxCount) { maxCount = count as number; maxDay = d }
+        }
+        setConnectionHeatmap(heatmap)
+        setConnectionsMade(totalMonth)
+
+        // Best day
+        if (maxDay > 0) {
+          const yr = dailyRes.data.year
+          const mo = dailyRes.data.month
+          const date = new Date(yr, mo - 1, maxDay)
+          setBestDay(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }))
+        }
+
+        // Weekly bars (last 7 days)
+        const today = new Date()
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        const bars: { day: string; height: number; isActive?: boolean }[] = []
+        const weekCounts: number[] = []
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today)
+          d.setDate(today.getDate() - i)
+          weekCounts.push(heatmap[d.getDate()] || 0)
+          bars.push({ day: dayNames[d.getDay()], height: 0, isActive: i === 0 })
+        }
+        const maxWeek = Math.max(...weekCounts, 1)
+        bars.forEach((b, idx) => { b.height = Math.round((weekCounts[idx] / maxWeek) * 100) })
+        setWeeklyData(bars)
       } catch (e) {
-        console.error("Failed to fetch message stats:", e)
+        console.error("Failed to fetch stats:", e)
       }
     }
     fetchStats()
   }, [isAuthenticated, authLoading, getAuthAxios])
-  const weeklyData = [//Needs to be set to real values
-    { day: "Sun", height: 40 },
-    { day: "Mon", height: 65 },
-    { day: "Tue", height: 45 },
-    { day: "Wed", height: 80 },
-    { day: "Thu", height: 55 },
-    { day: "Fri", height: 90, isActive: true },
-    { day: "Sat", height: 35 },
-  ]
 
 
   const metrics = {
-    connections: { value: "0", target: "7", percentage: 0 },
-    companies: { value: "0", target: "5", percentage: 0 },
+    connections: { 
+      value: connectionsVisited.toString(), 
+      target: "7", 
+      percentage: Math.min(100, Math.round((connectionsVisited / 7) * 100)) 
+    },
+    companies: { 
+      value: companiesVisited.toString(), 
+      target: "5", 
+      percentage: Math.min(100, Math.round((companiesVisited / 5) * 100)) 
+    },
   }
 
 
@@ -139,31 +201,6 @@ export default function Dashboard() {
   })
 
 
-  // Heatmap data: day -> number of connections (1-7)
-  const connectionHeatmap: Record<number, number> = {
-    1: 2,
-    3: 5,
-    4: 7,
-    5: 3,
-    8: 1,
-    10: 6,
-    11: 4,
-    12: 7,
-    14: 2,
-    15: 3,
-    17: 5,
-    18: 1,
-    20: 4,
-    22: 6,
-    23: 2,
-    25: 7,
-    27: 3,
-    28: 5,
-    30: 4,
-  }
-
-
-  // Get heatmap color based on connection count (1-7)
   const getHeatmapColor = (connections: number): string => {
     const colors: Record<number, string> = {
       1: "bg-purple-500/20",
@@ -174,7 +211,7 @@ export default function Dashboard() {
       6: "bg-purple-500/85",
       7: "bg-purple-500",
     }
-    return colors[connections] || ""
+    return colors[Math.min(connections, 7)] || ""
   }
 
 
@@ -212,7 +249,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-7 gap-2 mb-6">
               {calendarDays.map((day, i) => {
                 const connections = day ? connectionHeatmap[day] : undefined
-                const isToday = day === 17
+                const isToday = day === new Date().getDate()
                 const heatmapColor = connections ? getHeatmapColor(connections) : ""
                
                 return (
@@ -260,11 +297,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-4 pt-4 border-t border-dark-glassBorder">
               <div>
                 <p className="text-xs text-zinc-500 mb-1">Active time</p>
-                <p className="text-lg font-semibold text-white">{activeTime}</p>
+                <p className="text-lg font-semibold text-white">{formatTime(activeSeconds)}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Paths found</p>
-                <p className="text-lg font-semibold text-white">{pathsFound}</p>
+                <p className="text-xs text-zinc-500 mb-1">Connections made</p>
+                <p className="text-lg font-semibold text-white">{connectionsMade}</p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 mb-1">Best day</p>
@@ -293,6 +330,7 @@ export default function Dashboard() {
               target={metrics.connections.target}
               percentage={metrics.connections.percentage}
               color="bg-accent-cyan/20"
+              barColor="bg-accent-cyan"
             />
             <MetricBar
               icon={<Zap className="w-5 h-5 text-accent-amber" />}
@@ -301,6 +339,7 @@ export default function Dashboard() {
               target={metrics.companies.target}
               percentage={metrics.companies.percentage}
               color="bg-accent-amber/20"
+              barColor="bg-accent-amber"
             />
           </div>
 
@@ -332,14 +371,6 @@ export default function Dashboard() {
           </div>
 
 
-          <div className="col-span-6 lg:col-span-3 grid grid-cols-1 gap-4">
-            <StatCard
-              icon={<Droplets className="w-5 h-5 text-accent-cyan" />}
-              value={responseRate.toString()}
-              label="Response Rate"
-              color="bg-accent-cyan/20"
-            />
-          </div>
 
 
         </div>

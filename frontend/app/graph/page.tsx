@@ -66,14 +66,6 @@ export default function GraphPage() {
               <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
               <span className="text-xs text-zinc-400">Company</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full border-2 border-[#10B981] bg-transparent" />
-              <span className="text-xs text-zinc-400">Recruiter</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full border-2 border-[#22D3EE] bg-transparent" />
-              <span className="text-xs text-zinc-400">Network Root</span>
-            </div>
           </div>
         </div>
 
@@ -89,7 +81,7 @@ export default function GraphPage() {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-6 h-0.5 bg-[#F59E0B]/60" />
-              {/* <span className="text-xs text-zinc-500">works at</span> */}
+              <span className="text-xs text-zinc-500">works</span>
             </div>
           </div>
         </div>

@@ -15,7 +15,6 @@ interface Contact {
   email?: string
   profile_url?: string
   degree: number
-  relevance_score: number
   is_recruiter?: boolean
   bridge?: { name: string; title?: string }
 }
@@ -200,20 +199,6 @@ function SearchPageInner() {
           {results && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                  {[
-                    { label: "Total Connections", value: results.total_connections },
-                    { label: "Direct (1st°)", value: results.first_degree_count },
-                    { label: "Via Referral (2nd°)", value: results.second_degree_count },
-                    { label: "Extended (3rd°)", value: results.third_degree_count },
-                  ].map(s => (
-                    <div key={s.label} className="bg-dark-surface rounded-2xl p-4 text-center">
-                      <div className="text-2xl font-bold text-brand-400">{s.value}</div>
-                      <div className="text-xs text-zinc-500 mt-1">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-
                 {bestContact && (
                   <div className="glass-card p-6">
                     <div className="flex items-center gap-2 mb-6">
@@ -282,8 +267,6 @@ function SearchPageInner() {
                       </div>
                       <div className="mt-6 pt-6 border-t border-dark-glassBorder">
                         <p className="text-sm text-zinc-400 text-center">
-                          <span className="text-accent-emerald font-medium">{Math.round(bestContact.relevance_score * 100)}% match</span>
-                          {" — "}
                           {bestContact.is_recruiter
                             ? "Recruiter at the company"
                             : `${bestContact.degree === 1 ? "Direct" : `${bestContact.degree}rd-degree`} connection at ${results.company}`}
@@ -393,6 +376,28 @@ function SearchPageInner() {
                               <Mail className="w-4 h-4" />Send Email
                             </button>
                           </div>
+                          {selectedContact.profile_url && (
+                            <button
+                              onClick={async () => {
+                                // Log the LinkedIn visit
+                                try {
+                                  const axios = await getAuthAxios()
+                                  await axios.post("/api/messages/visit", {
+                                    person_id: selectedContact.id || selectedContact.name,
+                                    person_name: selectedContact.name,
+                                    company_name: query
+                                  })
+                                } catch (e) {
+                                  console.error("Failed to log LinkedIn visit:", e)
+                                }
+                                window.open(selectedContact.profile_url, "_blank", "noopener,noreferrer")
+                              }}
+                              className="w-full mt-2 bg-[#0A66C2] hover:bg-[#0A66C2]/80 text-white text-sm py-2.5 rounded-xl font-medium transition-all inline-flex items-center justify-center gap-2"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                              View LinkedIn Profile
+                            </button>
+                          )}
                           {emailError && (
                             <p className="mt-2 text-xs text-accent-rose text-center">
                               Email could not be found, copy this message to send directly.
@@ -442,7 +447,6 @@ export default function SearchPage() {
 }
 
 function ContactRow({ contact, onDraftMessage }: { contact: Contact; onDraftMessage: () => void }) {
-  const matchPercent = Math.round(contact.relevance_score * 100)
   return (
     <div className="p-4 rounded-xl bg-dark-bg/50 border border-dark-glassBorder hover:border-brand-500/30 transition-all group">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -453,9 +457,6 @@ function ContactRow({ contact, onDraftMessage }: { contact: Contact; onDraftMess
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h4 className="font-semibold text-white">{contact.name}</h4>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${matchPercent >= 70 ? "bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20" : matchPercent >= 40 ? "bg-brand-500/10 text-brand-400 border border-brand-500/20" : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"}`}>
-                {matchPercent}% match
-              </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-dark-elevated text-zinc-500 border border-dark-glassBorder">
                 {contact.degree === 1 ? "1st" : contact.degree === 2 ? "2nd" : "3rd"}°
               </span>

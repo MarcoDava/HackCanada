@@ -647,15 +647,39 @@ export default function Graph({ width, height, initialZoom, default3D = false }:
                 Draft Message
               </button>
               {selectedNode.profile_url && (
-                <a
-                  href={selectedNode.profile_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={async () => {
+                    // Find the company this person works at
+                    const worksAtLink = data.links.find(link => {
+                      const srcId = typeof link.source === "string" ? link.source : link.source.id
+                      return srcId === selectedNode.id && link.label === "WORKS_AT"
+                    })
+                    const companyId = worksAtLink
+                      ? (typeof worksAtLink.target === "string" ? worksAtLink.target : worksAtLink.target.id)
+                      : ""
+                    const companyNode = companyId ? data.nodes.find(n => n.id === companyId) : null
+                    const companyName = companyNode?.name || ""
+                    
+                    // Log the LinkedIn visit
+                    try {
+                      const axios = await getAuthAxios()
+                      await axios.post("/api/messages/visit", {
+                        person_id: selectedNode.id,
+                        person_name: selectedNode.name,
+                        company_name: companyName
+                      })
+                    } catch (e) {
+                      console.error("Failed to log LinkedIn visit:", e)
+                    }
+                    
+                    // Open LinkedIn profile
+                    window.open(selectedNode.profile_url, "_blank", "noopener,noreferrer")
+                  }}
                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#0A66C2] hover:bg-[#0A66C2]/80 text-white text-sm font-medium transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
                   View LinkedIn Profile
-                </a>
+                </button>
               )}
             </div>
           )}
