@@ -8,6 +8,7 @@ from authlib.integrations.starlette_client import OAuth
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from config import settings
+from services.graph.builder import make_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -84,6 +85,7 @@ async def login_password(request: Request):
             # In a real app, we'd exchange the Auth0 ID token for our app's JWT
             # For simplicity, we create our own app token based on the email
             user = {
+                "id": make_id("", email),
                 "email": email,
                 "name": email.split("@")[0], # Fallback name
                 "picture": "" # Fallback picture
@@ -131,6 +133,7 @@ async def signup(request: Request):
             # After successful signup, we can technically log them in or ask them to sign in
             # For a better UX, let's create a token immediately
             user = {
+                "id": make_id("", email),
                 "email": email,
                 "name": name,
                 "picture": ""
@@ -149,8 +152,10 @@ async def auth_callback(request: Request):
     token = await oauth.auth0.authorize_access_token(request)
     user_info = token.get("userinfo") or {}
 
+    email = user_info.get("email", "")
     user = {
-        "email": user_info.get("email", ""),
+        "id": make_id("", email),
+        "email": email,
         "name": user_info.get("name", ""),
         "picture": user_info.get("picture", ""),
     }

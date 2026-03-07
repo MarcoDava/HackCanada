@@ -58,10 +58,12 @@ def build_graph(df: pd.DataFrame, user: dict) -> dict:
 
     # Create the user node
     user_initials = "".join([part[0].upper() for part in user["name"].split() if part])
+    user_id = user.get("id") or make_id(user["name"])
+    
     db.run_write("""
         MERGE (p:Person {id: $id})
         SET p.name = $name, p.title = $title, p.is_user = true, p.initials = $initials
-    """, id=make_id(user["name"]), name=user["name"], title=user.get("title", ""), initials=user_initials)
+    """, id=user_id, name=user["name"], title=user.get("title", ""), initials=user_initials)
 
     recruiter_keywords = ["recruiter", "talent acquisition", "hiring", "hr", "people ops", "talent partner"]
 
@@ -101,7 +103,7 @@ def build_graph(df: pd.DataFrame, user: dict) -> dict:
         db.run_write("""
             MATCH (u:Person {id: $user_id}), (c:Person {id: $conn_id})
             MERGE (u)-[:KNOWS]->(c)
-        """, user_id=make_id(user["name"]), conn_id=person_id)
+        """, user_id=user_id, conn_id=person_id)
         stats["relationships"] += 1
 
         if company:

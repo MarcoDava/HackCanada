@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useRouter } from "next/navigation"
 
 interface User {
+  id: string
   email: string
   name: string
   picture: string
@@ -47,6 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback((newToken: string, newUser: User) => {
     localStorage.setItem("auth_token", newToken)
     localStorage.setItem("auth_user", JSON.stringify(newUser))
+    if (newUser.id) {
+      localStorage.setItem("user_id", newUser.id)
+      localStorage.setItem("user_name", newUser.name)
+    }
     setToken(newToken)
     setUser(newUser)
   }, [])
@@ -54,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("auth_user")
+    localStorage.removeItem("user_id")
+    localStorage.removeItem("user_name")
     setToken(null)
     setUser(null)
     router.push("/login")

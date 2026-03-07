@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import axios from "axios"
@@ -16,6 +16,31 @@ export default function UploadPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle")
   const [result, setResult] = useState<any>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [stats, setStats] = useState<any>(null)
+  const [loadingStats, setLoadingStats] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const userId = localStorage.getItem("user_id")
+      if (!userId) {
+        setLoadingStats(false)
+        return
+      }
+      try {
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/graph/stats`, {
+          params: { user_id: userId }
+        })
+        if (res.data && res.data.connections > 0) {
+          setStats(res.data)
+        }
+      } catch (e) {
+        console.error("Failed to fetch stats", e)
+      } finally {
+        setLoadingStats(false)
+      }
+    }
+    fetchStats()
+  }, [])
 
   const handleUpload = async () => {
     if (!file || !userName) return
@@ -24,8 +49,9 @@ export default function UploadPage() {
     formData.append("file", file)
 
     try {
+      const userId = localStorage.getItem("user_id") || ""
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/upload/csv?user_name=${encodeURIComponent(userName)}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/upload/csv?user_name=${encodeURIComponent(userName)}&user_id=${encodeURIComponent(userId)}`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       )
@@ -62,19 +88,21 @@ export default function UploadPage() {
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-lg animate-fade-in">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mx-auto mb-6 shadow-glow">
-            <Upload className="w-8 h-8 text-white" />
+      <main className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0a0a12]">
+        <div className="w-full max-w-lg mb-8 animate-fade-in">
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mx-auto mb-6 shadow-glow">
+              <Upload className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-3">Upload Your Network</h1>
+            <p className="text-zinc-400">
+              Export your connections from{" "}
+              <span className="text-zinc-200">LinkedIn Settings → Data Privacy → Get a copy</span>
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">Upload Your Network</h1>
-          <p className="text-zinc-400">
-            Export your connections from{" "}
-            <span className="text-zinc-200">LinkedIn Settings → Data Privacy → Get a copy</span>
-          </p>
         </div>
 
+        <div className="w-full max-w-lg">
         {status === "done" ? (
           <div className="glass-card p-8 border-accent-emerald/30 animate-slide-up">
             <div className="text-center">
@@ -108,8 +136,51 @@ export default function UploadPage() {
               </div>
             </div>
           </div>
+        ) : loadingStats ? (
+          <div className="glass-card p-12 flex flex-col items-center justify-center min-h-[300px]">
+            <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-4" />
+            <p className="text-zinc-400">Loading network status...</p>
+          </div>
         ) : (
-          <div className="glass-card p-8 space-y-6">
+          <div className="space-y-6">
+            {/* Active Network Summary Card */}
+            {stats && (
+              <div className="glass-card p-8 border-brand-500/30 bg-brand-900/10">
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="w-6 h-6 text-brand-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white mb-2">Your Network is Active</h2>
+                  <p className="text-zinc-400 text-sm">
+                    You currently have <strong className="text-white">{stats.connections} connections</strong> across <strong className="text-white">{stats.companies} companies</strong> mapped.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <button 
+                    onClick={() => router.push("/search")} 
+                    className="btn-primary"
+                  >
+                    Search Network
+                  </button>
+                  <button 
+                    onClick={() => router.push("/dashboard")} 
+                    className="btn-secondary"
+                  >
+                    View Dashboard
+                  </button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-zinc-800"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-[#12121a] px-2 text-zinc-600">Want to add more?</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="glass-card p-8 space-y-6">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">
                 Your Name
@@ -195,6 +266,7 @@ export default function UploadPage() {
               <span>Your data is processed securely and never shared</span>
             </div>
           </div>
+        </div>
         )}
 
           <div className="mt-8 p-4 rounded-xl bg-dark-surface/50 border border-dark-glassBorder">
@@ -214,3 +286,4 @@ export default function UploadPage() {
     </div>
   )
 }
+
