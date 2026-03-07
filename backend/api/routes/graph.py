@@ -131,47 +131,88 @@ def get_graph_overview(user_id: str = Query(...)):
     """
     Returns the full graph for the network visualizer with nodes + links.
 
-    Shows up to 3 hops of :KNOWS relationships from the central user,
-    plus the associated companies, so additional imported networks form
-    their own visible clusters.
+    Instead of only expanding from a single user node, this endpoint
+    pulls in ALL networks for the given owner (user_id), so that every
+    uploaded CSV / source network is represented in the graph.
+
+    We:
+      - Find all root/source persons where owner_user_id == user_id
+        (including the primary user).
+      - Expand up to 2 KNOWS hops out from each root to collect people.
+      - Attach their companies via WORKS_AT.
+      - Add KNOWS edges between any collected people.
     """
 
-    # Get the central user node
-    user_rows = db.run(
+    # 1. Fetch all root/source persons for this owner (primary + imported networks)
+    root_rows = db.run(
         """
-        MATCH (u:Person {id: $user_id})
-        RETURN u
+        MATCH (root:Person)
+        WHERE (root.is_user = true OR root.is_source = true)
+          AND coalesce(root.owner_user_id, root.id) = $owner_id
+        RETURN root
     """,
-        user_id=user_id,
+        owner_id=user_id,
     )
 
-    if not user_rows:
+    if not root_rows:
         return {"nodes": [], "links": []}
 
-    user_node = dict(user_rows[0]["u"])
+    # Determine which node is "you" in the visualization
+    user_node_row = next(
+        (r for r in root_rows if dict(r["root"]).get("id") == user_id), None
+    )
+    if user_node_row is None:
+        user_node_row = root_rows[0]
+
+    user_node = dict(user_node_row["root"])
     user_name = user_node.get("name", "You")
 
-    # Get all reachable people within 3 KNOWS hops, plus their companies
-    rows = db.run(
+    # 2. Collect all people within up to 2 KNOWS hops of ANY root
+    people_rows = db.run(
         """
-        MATCH (u:Person {id: $user_id})-[:KNOWS*1..3]->(p:Person)
-        OPTIONAL MATCH (p)-[:WORKS_AT]->(c:Company)
-        RETURN p, c
-        LIMIT 500
+        MATCH (root:Person)
+        WHERE (root.is_user = true OR root.is_source = true)
+          AND coalesce(root.owner_user_id, root.id) = $owner_id
+        WITH collect(root) AS roots
+        MATCH (r:Person)-[:KNOWS*0..2]-(p:Person)
+        WHERE r IN roots
+        RETURN DISTINCT p
+        LIMIT 1000
     """,
-        user_id=user_id,
+        owner_id=user_id,
     )
+
+    # 3. Attach companies for all collected people
+    person_ids: list[str] = [dict(r["p"]).get("id") for r in people_rows if dict(r["p"]).get("id")]
+    person_ids_set = set(person_ids)
+
+    company_rows = []
+    if person_ids:
+        company_rows = db.run(
+            """
+            MATCH (p:Person)-[:WORKS_AT]->(c:Company)
+            WHERE p.id IN $ids
+            RETURN p.id AS pid, c
+        """,
+            ids=person_ids,
+        )
+
+    # Build maps for quick lookup
+    companies_by_person: dict[str, list[dict]] = {}
+    for row in company_rows:
+        pid = row["pid"]
+        c_dict = dict(row["c"])
+        companies_by_person.setdefault(pid, []).append(c_dict)
 
     nodes: list[dict] = []
     links: list[dict] = []
     seen_nodes: set[str] = set()
     seen_companies: set[str] = set()
-    person_ids: set[str] = set()
 
     # Central user node
     nodes.append(
         {
-            "id": user_id,
+            "id": user_node.get("id", user_id),
             "name": user_name,
             "type": "user",
             "title": user_node.get("title", ""),
@@ -180,14 +221,17 @@ def get_graph_overview(user_id: str = Query(...)):
             "network_name": user_node.get("network_name", "Primary Network"),
         }
     )
-    seen_nodes.add(user_id)
-    person_ids.add(user_id)
+    seen_nodes.add(user_node.get("id", user_id))
 
-    for r in rows:
+    # 4. Add all person + company nodes and WORKS_AT links
+    for r in people_rows:
         person = dict(r["p"])
         pid = person.get("id", "")
+        if not pid:
+            continue
 
-        if pid and pid not in seen_nodes:
+        # Skip re-adding the central user as a person node
+        if pid != user_node.get("id") and pid not in seen_nodes:
             nodes.append(
                 {
                     "id": pid,
@@ -203,50 +247,49 @@ def get_graph_overview(user_id: str = Query(...)):
                 }
             )
             seen_nodes.add(pid)
-            person_ids.add(pid)
 
-        # Company node + WORKS_AT edge
-        company = dict(r["c"]) if r.get("c") else None
-        if company:
+        # Companies for this person
+        for company in companies_by_person.get(pid, []):
             cname = company.get("name", "")
-            if cname:
-                cid = f"company_{cname}"
-                if cid not in seen_companies:
-                    nodes.append(
-                        {
-                            "id": cid,
-                            "name": cname,
-                            "type": "company",
-                            "logo": company.get("logo", ""),
-                        }
-                    )
-                    seen_companies.add(cid)
+            if not cname:
+                continue
+            cid = f"company_{cname}"
+            if cid not in seen_companies:
+                nodes.append(
+                    {
+                        "id": cid,
+                        "name": cname,
+                        "type": "company",
+                        "logo": company.get("logo", ""),
+                    }
+                )
+                seen_companies.add(cid)
 
-                # WORKS_AT edge: connection -> company
-                if pid:
-                    links.append(
-                        {
-                            "source": pid,
-                            "target": cid,
-                            "label": "WORKS_AT",
-                        }
-                    )
+            links.append(
+                {
+                    "source": pid,
+                    "target": cid,
+                    "label": "WORKS_AT",
+                }
+            )
 
-    # Add KNOWS edges between all reachable people (including imported roots)
-    if person_ids:
+    # 5. Add KNOWS edges between all collected people (including all networks)
+    if person_ids_set:
         edge_rows = db.run(
             """
-            MATCH (a:Person)-[:KNOWS]->(b:Person)
+            MATCH (a:Person)-[:KNOWS]-(b:Person)
             WHERE a.id IN $ids AND b.id IN $ids
             RETURN DISTINCT a.id AS src, b.id AS dst
         """,
-            ids=list(person_ids),
+            ids=list(person_ids_set),
         )
         seen_edges: set[tuple[str, str]] = set()
         for er in edge_rows:
             src = er["src"]
             dst = er["dst"]
-            key = (src, dst)
+            if src == dst:
+                continue
+            key = tuple(sorted((src, dst)))
             if key in seen_edges:
                 continue
             seen_edges.add(key)

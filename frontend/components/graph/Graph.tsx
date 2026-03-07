@@ -19,6 +19,8 @@ type GraphNode = {
   logo?: string
   profile_url?: string
   connected_on?: string
+  is_source?: boolean
+  network_name?: string
   x?: number
   y?: number
 }
@@ -184,6 +186,15 @@ export default function Graph({ width, height }: Props) {
       ctx.fill()
     }
 
+    // Halo for network root/source nodes (other uploaded networks)
+    if (node.is_source && node.type === "person") {
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, r + 6, 0, 2 * Math.PI)
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.7)" // cyan ring
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+
     // Node circle
     ctx.beginPath()
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI)
@@ -235,7 +246,10 @@ export default function Graph({ width, height }: Props) {
       ctx.textAlign = "center"
       ctx.textBaseline = "top"
       ctx.fillStyle = node.type === "company" ? "#FCD34D" : "#E4E4E7"
-      ctx.fillText(node.name || "", node.x, node.y + r + 2)
+      const label = node.is_source && node.network_name
+        ? `${node.name} · ${node.network_name}`
+        : node.name || ""
+      ctx.fillText(label, node.x, node.y + r + 2)
     }
   }, [])
 
