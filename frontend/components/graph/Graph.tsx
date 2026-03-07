@@ -39,6 +39,7 @@ type GraphData = {
 type Props = {
   width?: number
   height?: number
+  initialZoom?: boolean
 }
 
 const NODE_COLORS: Record<string, string> = {
@@ -68,7 +69,7 @@ function loadLogo(url: string): HTMLImageElement | null {
   return null
 }
 
-export default function Graph({ width, height }: Props) {
+export default function Graph({ width, height, initialZoom }: Props) {
   const fgRef = useRef<any>(null)
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] })
   const [loading, setLoading] = useState(true)
@@ -76,6 +77,7 @@ export default function Graph({ width, height }: Props) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
+  const [hasInitialZoomed, setHasInitialZoomed] = useState(false)
 
   // Collect all company names for autocomplete
   const companyNames = useMemo(() => {
@@ -173,6 +175,19 @@ export default function Graph({ width, height }: Props) {
       setSelectedNode(null)
     }
   }, [])
+
+  const handleEngineStop = useCallback(() => {
+    if (initialZoom && !hasInitialZoomed && fgRef.current && data.nodes.length > 0) {
+      setHasInitialZoomed(true)
+      const userNode = data.nodes.find(n => n.type === "user")
+      if (userNode && userNode.x !== undefined && userNode.y !== undefined) {
+        fgRef.current.centerAt(userNode.x, userNode.y, 800)
+        fgRef.current.zoom(2.5, 800)
+      } else {
+        fgRef.current.zoom(2.0, 800)
+      }
+    }
+  }, [initialZoom, hasInitialZoomed, data])
 
   const paintNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const r = NODE_SIZES[node.type] || 5
@@ -460,6 +475,7 @@ export default function Graph({ width, height }: Props) {
         linkDirectionalArrowRelPos={0.9}
         onNodeClick={handleNodeClick}
         onBackgroundClick={() => setSelectedNode(null)}
+        onEngineStop={handleEngineStop}
         cooldownTicks={100}
         d3AlphaDecay={0.02}
         d3VelocityDecay={0.3}
