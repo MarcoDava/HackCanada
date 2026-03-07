@@ -28,6 +28,8 @@ interface SearchResults {
   second_degree_count: number
   recruiters: Contact[]
   top_connections: Contact[]
+  page: number
+  page_size: number
 }
 
 export default function SearchPage() {
@@ -39,24 +41,37 @@ export default function SearchPage() {
   const [messageLoading, setMessageLoading] = useState(false)
   const [copiedMessage, setCopiedMessage] = useState(false)
   const [emailError, setEmailError] = useState(false)
+  const [searchPage, setSearchPage] = useState(1)
+  const pageSize = 25
 
-  const search = async () => {
+  const search = async (pageOverride?: number) => {
     if (!query) return
+    const targetPage = pageOverride || 1
     setLoading(true)
-    setResults(null)
-    setSelectedContact(null)
-    setAiMessage("")
+    if (!pageOverride) {
+      setResults(null)
+      setSelectedContact(null)
+      setAiMessage("")
+      setSearchPage(1)
+    }
     setEmailError(false)
     const userId = localStorage.getItem("user_id") || ""
     const userName = localStorage.getItem("user_name") || ""
     try {
       const res = await axios.get(`${API_URL}/api/search/company`, {
-        params: { company: query, user_id: userId, user_name: userName }
+        params: { 
+          company: query, 
+          user_id: userId, 
+          user_name: userName,
+          page: targetPage,
+          page_size: pageSize
+        }
       })
       setResults(res.data)
-      if (res.data.top_connections?.length > 0) {
+      if (res.data.top_connections?.length > 0 && !pageOverride) {
         setSelectedContact(res.data.top_connections[0])
       }
+      setSearchPage(targetPage)
     } catch (e) {
       console.error("Search failed:", e)
     } finally {
@@ -118,7 +133,7 @@ export default function SearchPage() {
                   placeholder="e.g. Google, Shopify, OpenAI..."
                   className="flex-1 bg-dark-surface border border-dark-glassBorder rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-brand-500 transition-colors"
                 />
-                <button onClick={search} disabled={loading || !query} className="btn-primary px-6 py-3 disabled:opacity-40">
+                <button onClick={() => search()} disabled={loading || !query} className="btn-primary px-6 py-3 disabled:opacity-40">
                   {loading ? (<><Loader2 className="w-5 h-5 animate-spin" />Searching...</>) : (<><Search className="w-5 h-5" />Search</>)}
                 </button>
               </div>
@@ -229,6 +244,33 @@ export default function SearchPage() {
                       <p className="text-zinc-500 text-center py-8">No connections found at this company.</p>
                     )}
                   </div>
+                  
+                  {results.total_connections > pageSize && (
+                    <div className="flex items-center justify-between mt-8 pt-6 border-t border-dark-glassBorder">
+                      <div className="flex items-center gap-4">
+                        <button 
+                          disabled={searchPage === 1 || loading}
+                          onClick={() => search(searchPage - 1)}
+                          className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40"
+                        >
+                          <ChevronLeft className="w-4 h-4" /> Previous
+                        </button>
+                        <span className="text-sm text-zinc-500 font-medium whitespace-nowrap">
+                          Page {searchPage} of {Math.ceil(results.total_connections / pageSize)}
+                        </span>
+                        <button 
+                          disabled={searchPage >= Math.ceil(results.total_connections / pageSize) || loading}
+                          onClick={() => search(searchPage + 1)}
+                          className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40"
+                        >
+                          Next <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-zinc-500 hidden sm:block">
+                        Total {results.total_connections} found
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
