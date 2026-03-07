@@ -76,3 +76,29 @@
   .stagger-3 { animation-delay: 0.3s; }
   .stagger-4 { animation-delay: 0.4s; }
 }
+
+/* Landing page video background */
+.video-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+}
+
+/* Cosmic glow animation */
+@keyframes cosmic-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+.cosmic-glow {
+  animation: cosmic-pulse 8s ease-in-out infinite;
+}

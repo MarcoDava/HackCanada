@@ -1,10 +1,19 @@
 "use client"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Upload, FileText, ArrowRight, Shield, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
+import { useRouter, usePathname } from "next/navigation"
+import Link from "next/link"
+import { Upload, FileText, ArrowRight, Shield, CheckCircle2, Loader2, AlertCircle, Waypoints, Home, Users, Search, Settings } from "lucide-react"
+
+const navItems = [
+  { icon: Home, href: "/dashboard", label: "Dashboard" },
+  { icon: Users, href: "/connections", label: "Connections" },
+  { icon: Upload, href: "/upload", label: "Upload" },
+  { icon: Search, href: "/search", label: "Search" },
+]
 
 export default function UploadPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [file, setFile] = useState<File | null>(null)
   const [userName, setUserName] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle")
@@ -36,8 +45,42 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center py-16 px-6">
-      <div className="w-full max-w-lg animate-fade-in">
+    <div className="flex min-h-screen bg-dark-bg">
+      <aside className="w-20 bg-dark-surface border-r border-dark-glassBorder flex flex-col items-center py-6 gap-2">
+        <Link href="/" className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mb-8 shadow-glow">
+          <Waypoints className="w-6 h-6 text-white" />
+        </Link>
+
+        <nav className="flex-1 flex flex-col gap-2">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                  isActive 
+                    ? "bg-brand-500/20 text-brand-400" 
+                    : "text-zinc-500 hover:text-white hover:bg-dark-elevated"
+                }`}
+                title={item.label}
+              >
+                <item.icon className="w-5 h-5" />
+              </Link>
+            )
+          })}
+        </nav>
+
+        <div className="flex flex-col gap-2">
+          <button className="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-500 hover:text-white hover:bg-dark-elevated transition-all">
+            <Settings className="w-5 h-5" />
+          </button>
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-amber to-accent-rose" />
+        </div>
+      </aside>
+
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-lg animate-fade-in">
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mx-auto mb-6 shadow-glow">
             <Upload className="w-8 h-8 text-white" />
@@ -165,19 +208,20 @@ export default function UploadPage() {
           </div>
         )}
 
-        <div className="mt-8 p-4 rounded-xl bg-dark-surface/50 border border-dark-glassBorder">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-accent-amber mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="text-zinc-300 font-medium mb-1">How to get your LinkedIn data</p>
-              <p className="text-zinc-500">
-                Go to LinkedIn → Settings → Data Privacy → Get a copy of your data → 
-                Select &quot;Connections&quot; → Download when ready
-              </p>
+          <div className="mt-8 p-4 rounded-xl bg-dark-surface/50 border border-dark-glassBorder">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-accent-amber mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="text-zinc-300 font-medium mb-1">How to get your LinkedIn data</p>
+                <p className="text-zinc-500">
+                  Go to LinkedIn → Settings → Data Privacy → Get a copy of your data → 
+                  Select &quot;Connections&quot; → Download when ready
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
