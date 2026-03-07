@@ -1,15 +1,13 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import axios from "axios"
+import { useRouter } from "next/navigation"
 import { 
-  Waypoints, Home, Users, Upload, Settings, Search,
-  Building2, ArrowUpRight, Filter, SortAsc, ChevronRight, ChevronLeft, Loader2
+  Users, Building2, Filter, SortAsc, ChevronRight, ChevronLeft, Loader2, Search
 } from "lucide-react"
 import Sidebar from "@/components/Sidebar"
+import { useAuth, useAuthenticatedAxios } from "@/components/AuthContext"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface Connection {
   id: string
@@ -25,6 +23,10 @@ interface Connection {
 
 
 export default function ConnectionsPage() {
+  const router = useRouter()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const getAuthAxios = useAuthenticatedAxios()
+  
   const [searchQuery, setSearchQuery] = useState("")
   const [filterCompany, setFilterCompany] = useState<string | null>(null)
   const [connections, setConnections] = useState<Connection[]>([])
@@ -34,17 +36,12 @@ export default function ConnectionsPage() {
   const [companies, setCompanies] = useState<string[]>([])
   const pageSize = 25
 
-  const fetchConnections = async () => {
+  const fetchConnections = useCallback(async () => {
     setLoading(true)
-    const userId = localStorage.getItem("user_id") || ""
-    if (!userId) {
-      setLoading(false)
-      return
-    }
     try {
-      const res = await axios.get(`${API_URL}/api/graph/connections`, {
+      const axios = await getAuthAxios()
+      const res = await axios.get("/api/graph/connections", {
         params: {
-          user_id: userId,
           page: currentPage,
           page_size: pageSize,
           search: searchQuery || undefined,
@@ -53,40 +50,59 @@ export default function ConnectionsPage() {
       })
       setConnections(res.data.connections || [])
       setTotalCount(res.data.total_count || 0)
-    } catch (e) {
-      console.error("Failed to fetch connections:", e)
+    } catch (e: any) {
+      if (e.response?.status !== 401) {
+        console.error("Failed to fetch connections:", e)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [getAuthAxios, currentPage, searchQuery, filterCompany])
 
-  const fetchCompanies = async () => {
-    const userId = localStorage.getItem("user_id") || ""
-    if (!userId) return
+  const fetchCompanies = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/graph/companies`, {
-        params: { user_id: userId }
-      })
+      const axios = await getAuthAxios()
+      const res = await axios.get("/api/graph/companies")
       setCompanies(res.data || [])
-    } catch (e) {
-      console.error("Failed to fetch companies:", e)
+    } catch (e: any) {
+      if (e.response?.status !== 401) {
+        console.error("Failed to fetch companies:", e)
+      }
     }
-  }
+  }, [getAuthAxios])
 
   useEffect(() => {
-    fetchCompanies()
-  }, [])
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login")
+    }
+  }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
+    if (isAuthenticated) {
+      fetchCompanies()
+    }
+  }, [isAuthenticated, fetchCompanies])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    
     const timer = setTimeout(() => {
       fetchConnections()
     }, 300)
     return () => clearTimeout(timer)
-  }, [currentPage, searchQuery, filterCompany])
+  }, [isAuthenticated, currentPage, searchQuery, filterCompany, fetchConnections])
 
   useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, filterCompany])
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-dark-bg items-center justify-center">
+        <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">

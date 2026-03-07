@@ -31,8 +31,8 @@ export default function LoginPage() {
       
       const res = await axios.post(`${apiUrl}${endpoint}`, payload)
       
-      const { token, user } = res.data
-      login(token, user)
+      const { access_token, refresh_token, user } = res.data
+      login(access_token, refresh_token, user)
       router.push("/upload")
     } catch (err: any) {
       const rawError = err.response?.data?.detail || err.message || "An unexpected error occurred"

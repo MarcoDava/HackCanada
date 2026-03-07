@@ -1,12 +1,10 @@
 "use client"
-import { usePathname } from "next/navigation"
-import { Waypoints, Sparkles, MessageSquare, Copy, ChevronLeft, User, Building2, ArrowRight, CheckCircle2, Home, Users, Upload, Search, Settings, Loader2, RefreshCw, Mail } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Waypoints, Sparkles, MessageSquare, Copy, ChevronLeft, User, Building2, ArrowRight, CheckCircle2, Search, Loader2, Mail } from "lucide-react"
 import Link from "next/link"
 import Sidebar from "@/components/Sidebar"
-import { useState } from "react"
-import axios from "axios"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+import { useState, useEffect } from "react"
+import { useAuth, useAuthenticatedAxios } from "@/components/AuthContext"
 
 
 interface Contact {
@@ -33,6 +31,10 @@ interface SearchResults {
 }
 
 export default function SearchPage() {
+  const router = useRouter()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
+  const getAuthAxios = useAuthenticatedAxios()
+  
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SearchResults | null>(null)
@@ -43,6 +45,12 @@ export default function SearchPage() {
   const [emailError, setEmailError] = useState(false)
   const [searchPage, setSearchPage] = useState(1)
   const pageSize = 25
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login")
+    }
+  }, [authLoading, isAuthenticated, router])
 
   const search = async (pageOverride?: number) => {
     if (!query) return
@@ -55,14 +63,12 @@ export default function SearchPage() {
       setSearchPage(1)
     }
     setEmailError(false)
-    const userId = localStorage.getItem("user_id") || ""
-    const userName = localStorage.getItem("user_name") || ""
+    
     try {
-      const res = await axios.get(`${API_URL}/api/search/company`, {
+      const axios = await getAuthAxios()
+      const res = await axios.get("/api/search/company", {
         params: { 
           company: query, 
-          user_id: userId, 
-          user_name: userName,
           page: targetPage,
           page_size: pageSize
         }
@@ -84,10 +90,10 @@ export default function SearchPage() {
     setMessageLoading(true)
     setAiMessage("")
     setEmailError(false)
-    const userName = localStorage.getItem("user_name") || "Me"
+    
     try {
-      const res = await axios.post(`${API_URL}/api/messages/generate`, {
-        user: { name: userName, companies: [], schools: [] },
+      const axios = await getAuthAxios()
+      const res = await axios.post("/api/messages/generate", {
         target_person: contact,
         target_company: query,
         bridge_person: contact.bridge || null,
@@ -104,6 +110,14 @@ export default function SearchPage() {
     navigator.clipboard.writeText(aiMessage)
     setCopiedMessage(true)
     setTimeout(() => setCopiedMessage(false), 2000)
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-dark-bg items-center justify-center">
+        <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+      </div>
+    )
   }
 
   const bestContact = results?.top_connections?.[0] || null
@@ -198,7 +212,6 @@ export default function SearchPage() {
                         </div>
                         <div className="flex-1 max-w-[80px] flex flex-col items-center">
                           <div className="h-0.5 w-full bg-gradient-to-r from-accent-emerald to-accent-cyan rounded-full" />
-                          {/* <span className="text-[10px] text-zinc-500 mt-2">works at</span> */}
                         </div>
                         <div className="text-center">
                           <div className="w-14 h-14 rounded-full bg-accent-cyan/20 border-2 border-accent-cyan flex items-center justify-center mx-auto mb-3">
@@ -221,7 +234,7 @@ export default function SearchPage() {
                   <div className="glass-card p-6">
                     <div className="flex items-center gap-2 mb-6">
                       <Sparkles className="w-5 h-5 text-accent-amber" />
-                      <h2 className="text-lg font-semibold text-white">🎯 Recruiters at {results.company}</h2>
+                      <h2 className="text-lg font-semibold text-white">Recruiters at {results.company}</h2>
                     </div>
                     <div className="space-y-4">
                       {results.recruiters.map((contact, idx) => (

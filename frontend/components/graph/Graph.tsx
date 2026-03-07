@@ -1,13 +1,12 @@
 "use client"
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
-import axios from "axios"
 import dynamic from "next/dynamic"
-import { Search, X, ExternalLink, User, Briefcase, Calendar, Shield } from "lucide-react"
+import { Search, X, ExternalLink, User, Briefcase, Calendar, Shield, Box, Square } from "lucide-react"
+import { useAuth, useAuthenticatedAxios } from "@/components/AuthContext"
+import * as THREE from "three"
 
-// @ts-ignore - dynamic import without types
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d").then(mod => mod.default || mod), { ssr: false })
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const ForceGraph3D = dynamic(() => import("react-force-graph-3d").then(mod => mod.default || mod), { ssr: false })
 
 type GraphNode = {
   id: string
@@ -21,6 +20,7 @@ type GraphNode = {
   connected_on?: string
   x?: number
   y?: number
+  z?: number
 }
 
 type GraphLink = {
@@ -38,6 +38,7 @@ type Props = {
   width?: number
   height?: number
   initialZoom?: boolean
+  default3D?: boolean
 }
 
 const NODE_COLORS: Record<string, string> = {
@@ -52,7 +53,12 @@ const NODE_SIZES: Record<string, number> = {
   company: 7,
 }
 
-// Image cache for company logos
+const NODE_SIZES_3D: Record<string, number> = {
+  user: 8,
+  person: 4,
+  company: 6,
+}
+
 const logoCache = new Map<string, HTMLImageElement | null>()
 
 function loadLogo(url: string): HTMLImageElement | null {
@@ -67,8 +73,10 @@ function loadLogo(url: string): HTMLImageElement | null {
   return null
 }
 
-export default function Graph({ width, height, initialZoom }: Props) {
+export default function Graph({ width, height, initialZoom, default3D = false }: Props) {
   const fgRef = useRef<any>(null)
+  const { isAuthenticated } = useAuth()
+  const getAuthAxios = useAuthenticatedAxios()
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,8 +84,8 @@ export default function Graph({ width, height, initialZoom }: Props) {
   const [isFocused, setIsFocused] = useState(false)
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const [hasInitialZoomed, setHasInitialZoomed] = useState(false)
+  const [is3D, setIs3D] = useState(default3D)
 
-  // Collect all company names for autocomplete
   const companyNames = useMemo(() => {
     return data.nodes
       .filter(n => n.type === "company")
@@ -85,19 +93,16 @@ export default function Graph({ width, height, initialZoom }: Props) {
       .sort((a, b) => a.localeCompare(b))
   }, [data.nodes])
 
-  // Filtered suggestions based on typed query
   const suggestions = useMemo(() => {
     if (!searchQuery.trim()) return []
     const q = searchQuery.toLowerCase()
     return companyNames.filter(name => name.toLowerCase().includes(q)).slice(0, 8)
   }, [searchQuery, companyNames])
 
-  // Pruned graph data: only matched company, its connections, and the user node
   const filteredData = useMemo<GraphData>(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return data
 
-    // Find all company nodes that match
     const matchedCompanyIds = new Set(
       data.nodes
         .filter(n => n.type === "company" && n.name.toLowerCase().includes(q))
@@ -106,7 +111,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
 
     if (matchedCompanyIds.size === 0) return data
 
-    // Find all people connected to matched companies via WORKS_AT links
     const connectedPersonIds = new Set<string>()
     data.links.forEach(link => {
       const srcId = typeof link.source === "string" ? link.source : link.source.id
@@ -115,11 +119,9 @@ export default function Graph({ width, height, initialZoom }: Props) {
       if (matchedCompanyIds.has(srcId)) connectedPersonIds.add(tgtId)
     })
 
-    // Always keep the user node
     const userNode = data.nodes.find(n => n.type === "user")
     if (userNode) connectedPersonIds.add(userNode.id)
 
-    // Keep: matched companies + connected people + user
     const keepIds = new Set<string>()
     matchedCompanyIds.forEach(id => keepIds.add(id))
     connectedPersonIds.forEach(id => keepIds.add(id))
@@ -137,61 +139,85 @@ export default function Graph({ width, height, initialZoom }: Props) {
   useEffect(() => {
     let mounted = true
     async function load() {
-      setLoading(true)
-      setError(null)
-      const userId = localStorage.getItem("user_id")
-      if (!userId) {
-        setError("No user found. Please upload your CSV first.")
+      if (!isAuthenticated) {
+        setError("Please log in to view your network graph.")
         setLoading(false)
         return
       }
+      
+      setLoading(true)
+      setError(null)
+      
       try {
-        const res = await axios.get(`${API_URL}/api/graph/overview`, {
-          params: { user_id: userId },
-        })
+        const axios = await getAuthAxios()
+        const res = await axios.get("/api/graph/overview")
         if (!mounted) return
         setData(res.data)
       } catch (err: any) {
         if (!mounted) return
-        setError(err?.message ?? "Failed to load graph")
+        if (err?.response?.status === 401) {
+          setError("Session expired. Please log in again.")
+        } else {
+          setError(err?.message ?? "Failed to load graph")
+        }
       } finally {
         if (mounted) setLoading(false)
       }
     }
     load()
     return () => { mounted = false }
-  }, [])
+  }, [isAuthenticated, getAuthAxios])
 
   const handleNodeClick = useCallback((node: any) => {
-    if (fgRef.current && node.x !== undefined && node.y !== undefined) {
+    if (is3D && fgRef.current) {
+      const distance = 120
+      const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
+      fgRef.current.cameraPosition(
+        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+        node,
+        1000
+      )
+    } else if (fgRef.current && node.x !== undefined && node.y !== undefined) {
       fgRef.current.centerAt(node.x, node.y, 600)
       fgRef.current.zoom(2.5, 600)
     }
+    
     if (node.type === "person" || node.type === "user") {
       setSelectedNode(node as GraphNode)
     } else {
       setSelectedNode(null)
     }
-  }, [])
+  }, [is3D])
 
   const handleEngineStop = useCallback(() => {
     if (initialZoom && !hasInitialZoomed && fgRef.current && data.nodes.length > 0) {
       setHasInitialZoomed(true)
       const userNode = data.nodes.find(n => n.type === "user")
-      if (userNode && userNode.x !== undefined && userNode.y !== undefined) {
-        fgRef.current.centerAt(userNode.x, userNode.y, 800)
-        fgRef.current.zoom(2.5, 800)
+      
+      if (is3D) {
+        if (userNode && userNode.x !== undefined) {
+          const distance = 200
+          fgRef.current.cameraPosition(
+            { x: distance, y: distance, z: distance },
+            { x: 0, y: 0, z: 0 },
+            1500
+          )
+        }
       } else {
-        fgRef.current.zoom(2.0, 800)
+        if (userNode && userNode.x !== undefined && userNode.y !== undefined) {
+          fgRef.current.centerAt(userNode.x, userNode.y, 800)
+          fgRef.current.zoom(2.5, 800)
+        } else {
+          fgRef.current.zoom(2.0, 800)
+        }
       }
     }
-  }, [initialZoom, hasInitialZoomed, data])
+  }, [initialZoom, hasInitialZoomed, data, is3D])
 
   const paintNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const r = NODE_SIZES[node.type] || 5
     const color = NODE_COLORS[node.type] || "#888"
 
-    // Glow for user node
     if (node.type === "user") {
       ctx.beginPath()
       ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI)
@@ -199,13 +225,11 @@ export default function Graph({ width, height, initialZoom }: Props) {
       ctx.fill()
     }
 
-    // Node circle
     ctx.beginPath()
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI)
     ctx.fillStyle = color
     ctx.fill()
 
-    // Company logo inside node
     if (node.type === "company" && node.logo) {
       const logo = loadLogo(node.logo)
       if (logo) {
@@ -215,7 +239,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
         ctx.clip()
         ctx.drawImage(logo, node.x - (r - 1), node.y - (r - 1), (r - 1) * 2, (r - 1) * 2)
         ctx.restore()
-        // Border around logo
         ctx.beginPath()
         ctx.arc(node.x, node.y, r, 0, 2 * Math.PI)
         ctx.strokeStyle = "#F59E0B"
@@ -224,7 +247,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
       }
     }
 
-    // Initials inside node (for user and person nodes)
     if (node.type !== "company" && node.initials) {
       const initFontSize = Math.max(r * 1.1, 3)
       ctx.font = `${initFontSize}px Inter, sans-serif`
@@ -234,7 +256,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
       ctx.fillText(node.initials, node.x, node.y)
     }
 
-    // Recruiter ring
     if (node.is_recruiter) {
       ctx.beginPath()
       ctx.arc(node.x, node.y, r + 2, 0, 2 * Math.PI)
@@ -243,7 +264,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
       ctx.stroke()
     }
 
-    // Label
     const fontSize = Math.max(10 / globalScale, 2)
     if (globalScale > 0.6 || node.type === "user" || node.type === "company") {
       ctx.font = `${node.type === "user" ? "bold " : ""}${fontSize}px Inter, sans-serif`
@@ -254,7 +274,7 @@ export default function Graph({ width, height, initialZoom }: Props) {
     }
   }, [])
 
-  const paintLink = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+  const paintLink = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
     const src = link.source
     const tgt = link.target
     if (!src || !tgt || src.x == null || tgt.x == null) return
@@ -265,18 +285,48 @@ export default function Graph({ width, height, initialZoom }: Props) {
     ctx.strokeStyle = link.label === "KNOWS" ? "rgba(139,92,246,0.3)" : "rgba(245,158,11,0.3)"
     ctx.lineWidth = link.label === "KNOWS" ? 0.8 : 0.5
     ctx.stroke()
+  }, [])
 
-    // Edge label when zoomed in
-    if (globalScale > 1.5) {
-      const mx = (src.x + tgt.x) / 2
-      const my = (src.y + tgt.y) / 2
-      const fontSize = Math.max(8 / globalScale, 2)
-      ctx.font = `${fontSize}px Inter, sans-serif`
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.fillStyle = "rgba(161,161,170,0.7)"
-     //  ctx.fillText(link.label === "KNOWS" ? "knows" : "works at", mx, my)
+  const create3DNode = useCallback((node: any) => {
+    const size = NODE_SIZES_3D[node.type as string] || 4
+    const color = NODE_COLORS[node.type as string] || "#888"
+    
+    const geometry = node.type === "company" 
+      ? new THREE.BoxGeometry(size, size, size)
+      : new THREE.SphereGeometry(size, 16, 16)
+    
+    const material = new THREE.MeshLambertMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.9,
+    })
+    
+    const mesh = new THREE.Mesh(geometry, material)
+    
+    if (node.type === "user") {
+      const glowGeometry = new THREE.SphereGeometry(size * 1.5, 16, 16)
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: "#8B5CF6",
+        transparent: true,
+        opacity: 0.2,
+      })
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial)
+      mesh.add(glow)
     }
+    
+    if (node.is_recruiter) {
+      const ringGeometry = new THREE.RingGeometry(size * 1.2, size * 1.4, 32)
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: "#10B981",
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8,
+      })
+      const ring = new THREE.Mesh(ringGeometry, ringMaterial)
+      mesh.add(ring)
+    }
+    
+    return mesh
   }, [])
 
   if (loading) {
@@ -300,6 +350,21 @@ export default function Graph({ width, height, initialZoom }: Props) {
 
   return (
     <div className="relative w-full h-full">
+      {/* 2D/3D Toggle */}
+      <div className="absolute top-4 right-4 z-10">
+        <button
+          onClick={() => {
+            setIs3D(!is3D)
+            setHasInitialZoomed(false)
+          }}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-dark-bg/90 backdrop-blur-md border border-dark-glassBorder text-sm text-zinc-300 hover:text-white hover:border-brand-500 transition-all"
+          title={is3D ? "Switch to 2D" : "Switch to 3D"}
+        >
+          {is3D ? <Square className="w-4 h-4" /> : <Box className="w-4 h-4" />}
+          <span>{is3D ? "2D" : "3D"}</span>
+        </button>
+      </div>
+
       {/* Search Bar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-80">
         <div className="relative">
@@ -323,7 +388,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
           )}
         </div>
 
-        {/* Autocomplete Dropdown */}
         {isFocused && suggestions.length > 0 && (
           <div className="mt-1 rounded-xl bg-dark-bg/95 backdrop-blur-md border border-dark-glassBorder overflow-hidden shadow-lg">
             {suggestions.map(name => (
@@ -342,7 +406,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
           </div>
         )}
 
-        {/* Active filter badge */}
         {searchQuery && filteredData !== data && (
           <div className="mt-2 flex items-center justify-center gap-2">
             <span className="text-xs text-zinc-400 bg-dark-bg/80 backdrop-blur-sm px-3 py-1 rounded-full border border-dark-glassBorder">
@@ -358,8 +421,7 @@ export default function Graph({ width, height, initialZoom }: Props) {
 
       {/* Person Detail Panel */}
       {selectedNode && (
-        <div className="absolute top-4 right-4 z-10 w-72 rounded-2xl bg-dark-bg/95 backdrop-blur-md border border-dark-glassBorder shadow-lg overflow-hidden">
-          {/* Header */}
+        <div className="absolute top-4 right-20 z-10 w-72 rounded-2xl bg-dark-bg/95 backdrop-blur-md border border-dark-glassBorder shadow-lg overflow-hidden">
           <div className="relative px-5 pt-5 pb-4 border-b border-dark-glassBorder">
             <button
               onClick={() => setSelectedNode(null)}
@@ -384,7 +446,6 @@ export default function Graph({ width, height, initialZoom }: Props) {
             </div>
           </div>
 
-          {/* Details */}
           <div className="px-5 py-4 space-y-3">
             {selectedNode.title && (
               <div className="flex items-start gap-3">
@@ -418,14 +479,13 @@ export default function Graph({ width, height, initialZoom }: Props) {
               <div className="flex items-start gap-3">
                 <Calendar className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className     ="text-xs text-zinc-500">Connected On</p>
+                  <p className="text-xs text-zinc-500">Connected On</p>
                   <p className="text-sm text-zinc-200">{selectedNode.connected_on}</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* LinkedIn Link */}
           {selectedNode.profile_url && (
             <div className="px-5 pb-4">
               <a
@@ -442,30 +502,61 @@ export default function Graph({ width, height, initialZoom }: Props) {
         </div>
       )}
 
-      <ForceGraph2D
-        ref={fgRef}
-        graphData={filteredData}
-        width={width}
-        height={height}
-        backgroundColor="rgba(0,0,0,0)"
-        nodeCanvasObject={paintNode}
-        nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-          const r = NODE_SIZES[node.type as string] || 5
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI)
-          ctx.fillStyle = color
-          ctx.fill()
-        }}
-        linkCanvasObject={paintLink}
-        linkDirectionalArrowLength={4}
-        linkDirectionalArrowRelPos={0.9}
-        onNodeClick={handleNodeClick}
-        onBackgroundClick={() => setSelectedNode(null)}
-        onEngineStop={handleEngineStop}
-        cooldownTicks={100}
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
-      />
+      {/* 3D Mode Instructions */}
+      {is3D && (
+        <div className="absolute bottom-4 left-4 z-10 px-4 py-2 rounded-xl bg-dark-bg/80 backdrop-blur-sm border border-dark-glassBorder">
+          <p className="text-xs text-zinc-500">
+            <span className="text-zinc-300">Drag</span> to rotate · <span className="text-zinc-300">Scroll</span> to zoom · <span className="text-zinc-300">Right-drag</span> to pan
+          </p>
+        </div>
+      )}
+
+      {is3D ? (
+        <ForceGraph3D
+          ref={fgRef}
+          graphData={filteredData}
+          width={width}
+          height={height}
+          backgroundColor="rgba(10,10,18,0)"
+          nodeThreeObject={create3DNode}
+          nodeLabel={(node: any) => `${node.name}${node.title ? ` - ${node.title}` : ''}`}
+          linkColor={(link: any) => link.label === "KNOWS" ? "rgba(139,92,246,0.4)" : "rgba(245,158,11,0.4)"}
+          linkWidth={1}
+          linkOpacity={0.6}
+          onNodeClick={handleNodeClick}
+          onBackgroundClick={() => setSelectedNode(null)}
+          onEngineStop={handleEngineStop}
+          cooldownTicks={100}
+          enableNodeDrag={true}
+          enableNavigationControls={true}
+          showNavInfo={false}
+        />
+      ) : (
+        <ForceGraph2D
+          ref={fgRef}
+          graphData={filteredData}
+          width={width}
+          height={height}
+          backgroundColor="rgba(0,0,0,0)"
+          nodeCanvasObject={paintNode}
+          nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+            const r = NODE_SIZES[node.type as string] || 5
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI)
+            ctx.fillStyle = color
+            ctx.fill()
+          }}
+          linkCanvasObject={paintLink}
+          linkDirectionalArrowLength={4}
+          linkDirectionalArrowRelPos={0.9}
+          onNodeClick={handleNodeClick}
+          onBackgroundClick={() => setSelectedNode(null)}
+          onEngineStop={handleEngineStop}
+          cooldownTicks={100}
+          d3AlphaDecay={0.02}
+          d3VelocityDecay={0.3}
+        />
+      )}
     </div>
   )
 }

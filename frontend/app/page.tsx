@@ -69,7 +69,7 @@ export default function Home() {
 
 
           <Link
-            href="/upload"
+            href="/login  "
             className="px-5 py-2 rounded-full border border-zinc-700 text-sm text-white hover:bg-white/5 transition-all flex items-center gap-2"
           >
             Sign in
@@ -105,34 +105,7 @@ export default function Home() {
           <p className="text-zinc-500 max-w-md mx-auto mb-12 leading-relaxed">
             Discover the warmest paths to any company with clarity and purpose.
           </p>
-
-
-          {/* Stats card */}
-          <div className="inline-flex items-center gap-6 bg-[#12121a]/80 backdrop-blur-xl border border-zinc-800/50 rounded-2xl px-6 py-4 mb-12">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Network className="w-4 h-4 text-purple-400" />
-              </div>
-              <div className="text-left">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Paths Found</p>
-                <p className="text-white font-medium">2.4k+</p>
-              </div>
-            </div>
            
-            <div className="w-px h-8 bg-zinc-800" />
-           
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-4 h-4 text-zinc-600" />
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-semibold text-white">$1.9B+</span>
-                <div className="flex gap-0.5">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className={`w-1 rounded-full ${i < 4 ? 'h-4 bg-purple-400' : 'h-2 bg-zinc-700'}`} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
 
@@ -165,15 +138,15 @@ export default function Home() {
             <div className="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center">
               <Waypoints className="w-3 h-3" />
             </div>
-            <span>UNIV.0</span>
+            
             <span className="text-zinc-700">=</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-zinc-500">
           <Link
-            href="/upload"
+            href="/login"
             className="px-5 py-2.5 rounded-full bg-[#d4ff00] text-black text-sm font-medium hover:bg-[#e5ff4d] transition-all flex items-center gap-2"
           >
-            Connect
+            Connect Now!
           </Link>
           </div>
         </div>

@@ -1,66 +1,75 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useRouter, usePathname } from "next/navigation"
-import Link from "next/link"
-import axios from "axios"
+import { useRouter } from "next/navigation"
 import { Upload, FileText, ArrowRight, Shield, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
 import Sidebar from "@/components/Sidebar"
-import { useAuth } from "@/components/AuthContext"
+import { useAuth, useAuthenticatedAxios } from "@/components/AuthContext"
 
 
 export default function UploadPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const getAuthAxios = useAuthenticatedAxios()
+  
   const [file, setFile] = useState<File | null>(null)
-  const [userName, setUserName] = useState(user?.name || "")
+  const [userName, setUserName] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState<string>("")
   const [result, setResult] = useState<any>(null)
   const [dragActive, setDragActive] = useState(false)
   const [stats, setStats] = useState<any>(null)
   const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
+    if (user?.name) {
+      setUserName(user.name)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (authLoading) return
+    
+    if (!isAuthenticated) {
+      router.push("/login")
+      return
+    }
+
     const fetchStats = async () => {
-      const userId = localStorage.getItem("user_id")
-      if (!userId) {
-        setLoadingStats(false)
-        return
-      }
       try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/graph/stats`, {
-          params: { user_id: userId }
-        })
+        const axios = await getAuthAxios()
+        const res = await axios.get("/api/graph/stats")
         if (res.data && res.data.connections > 0) {
           setStats(res.data)
         }
-      } catch (e) {
-        console.error("Failed to fetch stats", e)
+      } catch (e: any) {
+        if (e.response?.status !== 401) {
+          console.error("Failed to fetch stats", e)
+        }
       } finally {
         setLoadingStats(false)
       }
     }
     fetchStats()
-  }, [])
+  }, [isAuthenticated, authLoading, router, getAuthAxios])
 
   const handleUpload = async () => {
     if (!file || !userName) return
     setStatus("loading")
+    setErrorMessage("")
+    
     const formData = new FormData()
     formData.append("file", file)
 
     try {
-      const userId = localStorage.getItem("user_id") || ""
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/upload/csv?user_name=${encodeURIComponent(userName)}&user_id=${encodeURIComponent(userId)}`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      )
+      const axios = await getAuthAxios()
+      const res = await axios.post("/api/upload/csv", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      })
       setResult(res.data)
       setStatus("done")
-      localStorage.setItem("user_id", res.data.user_id)
-      localStorage.setItem("user_name", userName)
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
+      setErrorMessage(e.response?.data?.detail || "Upload failed. Please try again.")
       setStatus("error")
     }
   }
@@ -82,6 +91,14 @@ export default function UploadPage() {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0])
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-dark-bg items-center justify-center">
+        <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -143,7 +160,6 @@ export default function UploadPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Active Network Summary Card */}
             {stats && (
               <div className="glass-card p-8 border-brand-500/30 bg-brand-900/10">
                 <div className="text-center mb-6">
@@ -262,8 +278,17 @@ export default function UploadPage() {
             </button>
 
             <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
-              <Shield className="w-4 h-4 text-accent-emerald" />
-              <span>Your data is processed securely and never shared</span>
+              {status === "error" ? (
+                <>
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                  <span className="text-red-500">{errorMessage || "Error occurred, please try again"}</span>
+                </>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 text-accent-emerald" />
+                  <span>Your data is processed securely and never shared</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -286,4 +311,3 @@ export default function UploadPage() {
     </div>
   )
 }
-

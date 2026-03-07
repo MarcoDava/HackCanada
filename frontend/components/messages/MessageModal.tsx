@@ -1,6 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
-import axios from "axios"
+import { useState, useEffect, useCallback } from "react"
+import { useAuthenticatedAxios } from "@/components/AuthContext"
 
 interface Props { contact: any; company: string; onClose: () => void }
 
@@ -8,22 +8,28 @@ export default function MessageModal({ contact, company, onClose }: Props) {
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const getAuthAxios = useAuthenticatedAxios()
 
-  useEffect(() => { generateMessage() }, [])
-
-  const generateMessage = async () => {
+  const generateMessage = useCallback(async () => {
     setLoading(true)
-    const userName = localStorage.getItem("user_name") || "Me"
     try {
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/messages/generate`, {
-        user: { name: userName, companies: [], schools: [] },
+      const axios = await getAuthAxios()
+      const res = await axios.post("/api/messages/generate", {
         target_person: contact,
         target_company: company,
         bridge_person: contact.bridge || null,
       })
       setMessage(res.data.message)
-    } finally { setLoading(false) }
-  }
+    } catch (err) {
+      setMessage("Failed to generate message. Please try again.")
+    } finally { 
+      setLoading(false) 
+    }
+  }, [getAuthAxios, contact, company])
+
+  useEffect(() => { 
+    generateMessage() 
+  }, [generateMessage])
 
   const copy = () => {
     navigator.clipboard.writeText(message)

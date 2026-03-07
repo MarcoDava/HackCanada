@@ -17,22 +17,21 @@ function CallbackHandler() {
     if (hasRun.current) return
     hasRun.current = true
 
-    const token = searchParams.get("token")
+    const accessToken = searchParams.get("access_token")
+    const refreshToken = searchParams.get("refresh_token")
     const userB64 = searchParams.get("user")
 
-    if (!token || !userB64) {
+    if (!accessToken || !refreshToken || !userB64) {
       setStatus("error")
       setErrorMsg("Missing authentication data. Please try signing in again.")
       return
     }
 
     try {
-      // Decode URL-safe base64 user info
       const userJson = atob(userB64.replace(/-/g, "+").replace(/_/g, "/"))
       const user = JSON.parse(userJson)
 
-      // Store auth data
-      login(token, user)
+      login(accessToken, refreshToken, user)
       setStatus("success")
 
       // Redirect after a brief moment
