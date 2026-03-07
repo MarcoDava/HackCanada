@@ -86,7 +86,7 @@ export default function UploadPage() {
                 {result ? result.message : "Your connections have been mapped and analyzed by AI."}
               </p>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4">
                 <button 
                   onClick={() => router.push("/search")} 
                   className="btn-primary"
@@ -98,6 +98,12 @@ export default function UploadPage() {
                   className="btn-secondary"
                 >
                   View Dashboard
+                </button>
+                <button 
+                  onClick={() => router.push("/graph")} 
+                  className="btn-tertiary"
+                >
+                  Create Graph
                 </button>
               </div>
             </div>
