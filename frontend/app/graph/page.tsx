@@ -9,8 +9,15 @@ import Graph from "@/components/graph/Graph"
 export default function GraphPage() {
   const router = useRouter()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [initialZoom, setInitialZoom] = useState(false)
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get("zoom") === "true") {
+        setInitialZoom(true)
+      }
+    }
     function handleResize() {
       // Subtract sidebar width (80px) and some padding
       setDimensions({
@@ -68,7 +75,7 @@ export default function GraphPage() {
 
         {/* Graph Container */}
         <div className="flex-1 rounded-2xl bg-dark-surface border border-dark-glassBorder overflow-hidden relative">
-          <Graph width={dimensions.width} height={dimensions.height} />
+          <Graph width={dimensions.width} height={dimensions.height} initialZoom={initialZoom} />
 
           {/* Edge labels info */}
           <div className="absolute bottom-4 left-4 flex gap-4 px-4 py-2 rounded-xl bg-dark-bg/80 backdrop-blur-sm border border-dark-glassBorder">

@@ -1,15 +1,13 @@
 "use client"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
-import axios from "axios"
+import { usePathname } from "next/navigation"
 import {
-  Waypoints, Home, Users, Upload, Settings, Search,
-  ArrowUpRight, Zap, Droplets, ChevronLeft, ChevronRight
+  Waypoints, ArrowUpRight, Zap, Droplets, ChevronLeft, ChevronRight, Maximize2
 } from "lucide-react"
 import Sidebar from "@/components/Sidebar"
+import Graph from "@/components/graph/Graph"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface MetricBarProps {
   icon: React.ReactNode
@@ -19,6 +17,7 @@ interface MetricBarProps {
   percentage: number
   color: string
 }
+
 
 function MetricBar({ icon, label, value, target, percentage, color }: MetricBarProps) {
   return (
@@ -43,12 +42,14 @@ function MetricBar({ icon, label, value, target, percentage, color }: MetricBarP
   )
 }
 
+
 interface StatCardProps {
   icon: React.ReactNode
   value: string
   label: string
   color: string
 }
+
 
 function StatCard({ icon, value, label, color }: StatCardProps) {
   return (
@@ -82,35 +83,22 @@ function WeeklyBar({ day, height, isActive }: WeeklyBarProps) {
   )
 }
 
-
 export default function Dashboard() {
-  const router = useRouter()
+  const pathname = usePathname()
   const [currentMonth] = useState(new Date())
-  const [stats, setStats] = useState({ connections: 0, companies: 0, recruiters: 0, top_companies: [] as any[] })
-  const [loading, setLoading] = useState(true)
-
+  const [activeTime, setActiveTime] = useState("00:00:00")
+  const [pathsFound, setPathsFound] = useState(0)
+  const [bestDay, setBestDay] = useState(new Date().toLocaleDateString())
+  const [messagesSent, setMessagesSent] = useState(0)
+  const [responseRate, setResponseRate] = useState(0)
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   useEffect(() => {
-    const fetchStats = async () => {
-      const userId = localStorage.getItem("user_id") || ""
-      if (!userId) {
-        setLoading(false)
-        return
-      }
-      try {
-        const res = await axios.get(`${API_URL}/api/graph/stats`, {
-          params: { user_id: userId }
-        })
-        setStats(res.data)
-      } catch (e) {
-        console.error("Failed to fetch stats:", e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchStats()
+    const interval = setInterval(() => {
+      setActiveTime(new Date().toLocaleTimeString())
+    }, 1000)
+    return () => clearInterval(interval)
   }, [])
-
-  const weeklyData = [
+  const weeklyData = [//Needs to be set to real values
     { day: "Sun", height: 40 },
     { day: "Mon", height: 65 },
     { day: "Tue", height: 45 },
@@ -120,18 +108,57 @@ export default function Dashboard() {
     { day: "Sat", height: 35 },
   ]
 
+
   const metrics = {
-    connections: { value: String(stats.connections), target: "500", percentage: Math.min(100, Math.round((stats.connections / 500) * 100)) },
-    companies: { value: String(stats.companies), target: "100", percentage: Math.min(100, Math.round((stats.companies / 100) * 100)) },
-    paths: { value: String(stats.recruiters), target: "50", percentage: Math.min(100, Math.round((stats.recruiters / 50) * 100)) },
+    connections: { value: "0", target: "7", percentage: 0 },
+    companies: { value: "0", target: "5", percentage: 0 },
   }
+
 
   const calendarDays = Array.from({ length: 35 }, (_, i) => {
     const day = i - 3
     return day > 0 && day <= 31 ? day : null
   })
 
-  const activityDays = [3, 4, 5, 10, 11, 12, 17]
+
+  // Heatmap data: day -> number of connections (1-7)
+  const connectionHeatmap: Record<number, number> = {
+    1: 2,
+    3: 5,
+    4: 7,
+    5: 3,
+    8: 1,
+    10: 6,
+    11: 4,
+    12: 7,
+    14: 2,
+    15: 3,
+    17: 5,
+    18: 1,
+    20: 4,
+    22: 6,
+    23: 2,
+    25: 7,
+    27: 3,
+    28: 5,
+    30: 4,
+  }
+
+
+  // Get heatmap color based on connection count (1-7)
+  const getHeatmapColor = (connections: number): string => {
+    const colors: Record<number, string> = {
+      1: "bg-purple-500/20",
+      2: "bg-purple-500/30",
+      3: "bg-purple-500/40",
+      4: "bg-purple-500/55",
+      5: "bg-purple-500/70",
+      6: "bg-purple-500/85",
+      7: "bg-purple-500",
+    }
+    return colors[connections] || ""
+  }
+
 
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
@@ -139,7 +166,7 @@ export default function Dashboard() {
 
       <main className="flex-1 p-6 overflow-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-12 gap-4 auto-rows-min">
-
+         
           <div className="col-span-12 lg:col-span-5 bg-dark-surface rounded-3xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-white">Network Activity</h2>
@@ -148,13 +175,14 @@ export default function Dashboard() {
               </button>
             </div>
 
+
             <div className="flex items-center justify-between mb-4">
               <button className="text-zinc-500 hover:text-white transition-colors">
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <div className="flex gap-8 text-sm">
                 {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
-                  <span key={d} className="text-zinc-500 w-8 text-center">{d}</span>
+                  <span key={d} className="text-zinc-500 w-[1.370rem] text-center">{d}</span>
                 ))}
               </div>
               <button className="text-zinc-500 hover:text-white transition-colors">
@@ -162,25 +190,31 @@ export default function Dashboard() {
               </button>
             </div>
 
+
             <div className="grid grid-cols-7 gap-2 mb-6">
               {calendarDays.map((day, i) => {
-                const hasActivity = day && activityDays.includes(day)
+                const connections = day ? connectionHeatmap[day] : undefined
                 const isToday = day === 17
+                const heatmapColor = connections ? getHeatmapColor(connections) : ""
+               
                 return (
                   <div
                     key={i}
-                    className={`aspect-square rounded-xl flex items-center justify-center text-sm relative ${day === null
-                      ? "text-zinc-700"
-                      : isToday
-                        ? "bg-brand-500 text-white font-medium"
-                        : "text-zinc-400 hover:bg-dark-elevated transition-colors cursor-pointer"
-                      }`}
+                    className={`aspect-square rounded-full flex items-center justify-center text-sm relative transition-all cursor-pointer group ${
+                      day === null
+                        ? "text-zinc-700"
+                        : isToday
+                          ? "bg-purple-500 text-white font-medium ring-2 ring-purple-400 ring-offset-2 ring-offset-dark-surface"
+                          : connections
+                            ? `${heatmapColor} text-white hover:ring-1 hover:ring-purple-400/50`
+                            : "text-zinc-500 hover:bg-dark-elevated"
+                    }`}
+                    title={connections ? `${connections} connection${connections > 1 ? 's' : ''} made` : undefined}
                   >
                     {day}
-                    {hasActivity && !isToday && (
-                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                        <div className="w-1 h-1 rounded-full bg-accent-rose" />
-                        <div className="w-1 h-1 rounded-full bg-accent-rose" />
+                    {connections && !isToday && (
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-purple-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {connections}
                       </div>
                     )}
                   </div>
@@ -188,73 +222,50 @@ export default function Dashboard() {
               })}
             </div>
 
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-dark-glassBorder">
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Connections</p>
-                <p className="text-lg font-semibold text-white">{loading ? "..." : stats.connections}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Companies</p>
-                <p className="text-lg font-semibold text-white">{loading ? "..." : stats.companies}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Recruiters</p>
-                <p className="text-lg font-semibold text-white">{loading ? "..." : stats.recruiters}</p>
-              </div>
-            </div>
-          </div>
 
-          <div className="col-span-12 lg:col-span-7 bg-gradient-to-br from-brand-600/40 via-brand-500/30 to-accent-cyan/20 rounded-3xl p-8 relative overflow-hidden min-h-[360px]">
-            <div className="relative z-10">
-              <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight mb-4">
-                Your Network,<br />
-                Your Power.
-              </h1>
-              <p className="text-zinc-300 max-w-sm mb-6">
-                Discover the warmest paths to any company with clarity and purpose.
-              </p>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
-                <Zap className="w-4 h-4 text-accent-amber" />
-                <span className="text-sm text-white">AI-Powered Path Discovery</span>
-              </div>
-            </div>
-
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center">
-              <div className="relative w-48 h-48">
-                <div className="absolute inset-0 rounded-full border border-white/10 animate-pulse-slow" />
-                <div className="absolute inset-6 rounded-full border border-white/10" />
-                <div className="absolute inset-12 rounded-full border border-white/20" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-to-br from-brand-400 to-accent-cyan flex items-center justify-center shadow-glow">
-                  <Waypoints className="w-8 h-8 text-white" />
-                </div>
-                {[
-                  { top: "5%", left: "50%", color: "bg-accent-cyan" },
-                  { top: "25%", left: "90%", color: "bg-purple-400" },
-                  { top: "75%", left: "85%", color: "bg-accent-emerald" },
-                  { top: "90%", left: "50%", color: "bg-accent-amber" },
-                  { top: "70%", left: "10%", color: "bg-accent-rose" },
-                  { top: "20%", left: "15%", color: "bg-blue-400" },
-                ].map((node, i) => (
+            {/* Heatmap legend */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="text-[10px] text-zinc-500">Less</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5, 6, 7].map((level) => (
                   <div
-                    key={i}
-                    className={`absolute w-3 h-3 rounded-full ${node.color} shadow-lg animate-float`}
-                    style={{
-                      top: node.top,
-                      left: node.left,
-                      transform: "translate(-50%, -50%)",
-                      animationDelay: `${i * 0.4}s`
-                    }}
+                    key={level}
+                    className={`w-3 h-3 rounded-sm ${getHeatmapColor(level)}`}
+                    title={`${level} connection${level > 1 ? 's' : ''}`}
                   />
                 ))}
               </div>
+              <span className="text-[10px] text-zinc-500">More</span>
             </div>
 
-            <div className="absolute bottom-6 right-6 flex gap-2">
-              <div className="w-2 h-2 rounded-full bg-white" />
-              <div className="w-2 h-2 rounded-full bg-white/30" />
-              <div className="w-2 h-2 rounded-full bg-white/30" />
+
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-dark-glassBorder">
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Active time</p>
+                <p className="text-lg font-semibold text-white">{activeTime}</p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Paths found</p>
+                <p className="text-lg font-semibold text-white">{pathsFound}</p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Best day</p>
+                <p className="text-lg font-semibold text-white">{bestDay}</p>
+              </div>
             </div>
           </div>
+                {/* TODO: 3D GRAPH GOES HERE */}
+          <div className="col-span-12 lg:col-span-7 bg-gradient-to-br from-brand-600/40 via-brand-500/30 to-accent-cyan/20 rounded-3xl p-8 relative overflow-hidden min-h-[360px] group">
+              <Link 
+                href="/graph?zoom=true"
+                className="absolute top-4 right-4 z-20 w-10 h-10 rounded-xl bg-dark-bg/80 backdrop-blur-md border border-dark-glassBorder flex items-center justify-center text-zinc-400 hover:text-white hover:bg-dark-surface transition-all opacity-0 group-hover:opacity-100"
+                title="Fullscreen Graph"
+              >
+                <Maximize2 className="w-5 h-5" />
+              </Link>
+              <Graph width={dimensions.width} height={dimensions.height} />
+            </div>
+
 
           <div className="col-span-12 lg:col-span-5 space-y-4">
             <MetricBar
@@ -273,25 +284,18 @@ export default function Dashboard() {
               percentage={metrics.companies.percentage}
               color="bg-accent-amber/20"
             />
-            <MetricBar
-              icon={<Waypoints className="w-5 h-5 text-accent-emerald" />}
-              label="Referral Paths"
-              value={metrics.paths.value}
-              target={metrics.paths.target}
-              percentage={metrics.paths.percentage}
-              color="bg-accent-emerald/20"
-            />
           </div>
+
 
           <div className="col-span-12 lg:col-span-4 bg-dark-surface rounded-3xl p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">This week</h3>
+              <h3 className="text-lg font-semibold text-white">Connections Made</h3>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-accent-rose" />
                 <span className="text-xs text-zinc-500">Last week</span>
               </div>
             </div>
-
+           
             <div className="flex gap-2">
               {weeklyData.map((bar, i) => (
                 <WeeklyBar key={i} {...bar} />
@@ -299,16 +303,31 @@ export default function Dashboard() {
             </div>
           </div>
 
+
           <div className="col-span-6 lg:col-span-3 grid grid-cols-1 gap-4">
             <StatCard
               icon={<Zap className="w-5 h-5 text-accent-amber" />}
-              value={loading ? "..." : String(stats.recruiters)}
-              label="Recruiters Found"
+              value={messagesSent.toString()}
+              label="Messages Sent"
               color="bg-accent-amber/20"
             />
           </div>
+
+
+          <div className="col-span-6 lg:col-span-3 grid grid-cols-1 gap-4">
+            <StatCard
+              icon={<Droplets className="w-5 h-5 text-accent-cyan" />}
+              value={responseRate.toString()}
+              label="Response Rate"
+              color="bg-accent-cyan/20"
+            />
+          </div>
+
+
         </div>
       </main>
     </div>
   )
 }
+
+
