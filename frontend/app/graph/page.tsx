@@ -78,7 +78,7 @@ export default function GraphPage() {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-6 h-0.5 bg-[#F59E0B]/60" />
-              <span className="text-xs text-zinc-500">works at</span>
+              {/* <span className="text-xs text-zinc-500">works at</span> */}
             </div>
           </div>
         </div>

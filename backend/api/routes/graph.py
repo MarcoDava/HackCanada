@@ -93,6 +93,7 @@ def get_graph_overview(user_id: str = Query(...)):
         "name": user_name,
         "type": "user",
         "title": user_node.get("title", ""),
+        "initials": user_node.get("initials", ""), 
     })
     seen_nodes.add(user_id)
 
@@ -107,6 +108,9 @@ def get_graph_overview(user_id: str = Query(...)):
                 "type": "person",
                 "title": person.get("title", ""),
                 "is_recruiter": person.get("is_recruiter", False),
+                "initials": person.get("initials", ""),
+                "profile_url": person.get("profile_url", ""),
+                "connected_on": person.get("connected_on", ""),
             })
             seen_nodes.add(pid)
 
@@ -128,6 +132,7 @@ def get_graph_overview(user_id: str = Query(...)):
                         "id": cid,
                         "name": cname,
                         "type": "company",
+                        "logo": company.get("logo", ""),
                     })
                     seen_companies.add(cid)
 

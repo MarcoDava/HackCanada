@@ -1,14 +1,15 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Waypoints, Home, Users, Upload, Search, Settings, LogOut } from "lucide-react"
+import { Waypoints, Home, Users, Upload, Search, GitGraph, Settings, LogOut } from "lucide-react"
 import { useAuth } from "./AuthContext"
 
 const navItems = [
   { icon: Home, href: "/dashboard", label: "Dashboard" },
-  { icon: Users, href: "/connections", label: "Connections" },
-  { icon: Upload, href: "/upload", label: "Upload" },
   { icon: Search, href: "/search", label: "Search" },
+  { icon: Users, href: "/connections", label: "Connections" },
+  { icon: GitGraph, href: "/graph", label: "Graph"},
+  { icon: Upload, href: "/upload", label: "Upload" },
 ]
 
 export default function Sidebar() {

@@ -1,9 +1,9 @@
 "use client"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import axios from "axios"
-import { 
+import {
   Waypoints, Home, Users, Upload, Settings, Search,
   ArrowUpRight, Zap, Droplets, ChevronLeft, ChevronRight
 } from "lucide-react"
@@ -34,7 +34,7 @@ function MetricBar({ icon, label, value, target, percentage, color }: MetricBarP
         <span className="text-sm text-zinc-400">{percentage}%</span>
       </div>
       <div className="h-1.5 bg-dark-elevated rounded-full overflow-hidden">
-        <div 
+        <div
           className={`h-full rounded-full transition-all duration-500 ${color.replace('bg-', 'bg-').replace('/20', '')}`}
           style={{ width: `${percentage}%` }}
         />
@@ -72,7 +72,7 @@ function WeeklyBar({ day, height, isActive }: WeeklyBarProps) {
   return (
     <div className="flex flex-col items-center gap-2 flex-1">
       <div className="w-full h-24 bg-dark-elevated rounded-lg relative overflow-hidden">
-        <div 
+        <div
           className={`absolute bottom-0 left-0 right-0 rounded-lg transition-all duration-500 ${isActive ? 'bg-gradient-to-t from-accent-rose to-accent-amber' : 'bg-gradient-to-t from-accent-rose/60 to-accent-amber/60'}`}
           style={{ height: `${height}%` }}
         />
@@ -84,6 +84,7 @@ function WeeklyBar({ day, height, isActive }: WeeklyBarProps) {
 
 
 export default function Dashboard() {
+  const router = useRouter()
   const [currentMonth] = useState(new Date())
   const [stats, setStats] = useState({ connections: 0, companies: 0, recruiters: 0, top_companies: [] as any[] })
   const [loading, setLoading] = useState(true)
@@ -108,7 +109,7 @@ export default function Dashboard() {
     }
     fetchStats()
   }, [])
-  
+
   const weeklyData = [
     { day: "Sun", height: 40 },
     { day: "Mon", height: 65 },
@@ -138,7 +139,7 @@ export default function Dashboard() {
 
       <main className="flex-1 p-6 overflow-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-12 gap-4 auto-rows-min">
-          
+
           <div className="col-span-12 lg:col-span-5 bg-dark-surface rounded-3xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-white">Network Activity</h2>
@@ -168,13 +169,12 @@ export default function Dashboard() {
                 return (
                   <div
                     key={i}
-                    className={`aspect-square rounded-xl flex items-center justify-center text-sm relative ${
-                      day === null 
-                        ? "text-zinc-700" 
-                        : isToday
-                          ? "bg-brand-500 text-white font-medium"
-                          : "text-zinc-400 hover:bg-dark-elevated transition-colors cursor-pointer"
-                    }`}
+                    className={`aspect-square rounded-xl flex items-center justify-center text-sm relative ${day === null
+                      ? "text-zinc-700"
+                      : isToday
+                        ? "bg-brand-500 text-white font-medium"
+                        : "text-zinc-400 hover:bg-dark-elevated transition-colors cursor-pointer"
+                      }`}
                   >
                     {day}
                     {hasActivity && !isToday && (
@@ -238,9 +238,9 @@ export default function Dashboard() {
                   <div
                     key={i}
                     className={`absolute w-3 h-3 rounded-full ${node.color} shadow-lg animate-float`}
-                    style={{ 
-                      top: node.top, 
-                      left: node.left, 
+                    style={{
+                      top: node.top,
+                      left: node.left,
                       transform: "translate(-50%, -50%)",
                       animationDelay: `${i * 0.4}s`
                     }}
@@ -291,7 +291,7 @@ export default function Dashboard() {
                 <span className="text-xs text-zinc-500">Last week</span>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               {weeklyData.map((bar, i) => (
                 <WeeklyBar key={i} {...bar} />
@@ -307,16 +307,6 @@ export default function Dashboard() {
               color="bg-accent-amber/20"
             />
           </div>
-
-          <div className="col-span-6 lg:col-span-3 grid grid-cols-1 gap-4">
-            <StatCard
-              icon={<Droplets className="w-5 h-5 text-accent-cyan" />}
-              value={loading ? "..." : stats.top_companies.length > 0 ? stats.top_companies[0].name : "N/A"}
-              label="Top Company"
-              color="bg-accent-cyan/20"
-            />
-          </div>
-
         </div>
       </main>
     </div>

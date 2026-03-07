@@ -181,7 +181,7 @@ export default function SearchPage() {
                         </div>
                         <div className="flex-1 max-w-[80px] flex flex-col items-center">
                           <div className="h-0.5 w-full bg-gradient-to-r from-accent-emerald to-accent-cyan rounded-full" />
-                          <span className="text-[10px] text-zinc-500 mt-2">works at</span>
+                          {/* <span className="text-[10px] text-zinc-500 mt-2">works at</span> */}
                         </div>
                         <div className="text-center">
                           <div className="w-14 h-14 rounded-full bg-accent-cyan/20 border-2 border-accent-cyan flex items-center justify-center mx-auto mb-3">
