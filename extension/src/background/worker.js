@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "CONNECTIONS_FOUND") storeAndSync(message.data)
   if (message.type === "FLUSH") chrome.storage.local.get("pending_connections", d => flush(d.pending_connections || []))
