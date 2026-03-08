@@ -3,9 +3,18 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from services.graph.builder import parse_csv, build_graph, make_id
 from db.neo4j_client import db
 from api.routes.auth import get_current_user
+import asyncio
+from functools import partial
 
 
 router = APIRouter()
+
+
+def _parse_and_build(contents: bytes, user_dict: dict) -> dict:
+    """Run the blocking CSV parse + graph build in a worker thread."""
+    df = parse_csv(contents)
+    stats = build_graph(df, user_dict)
+    return stats
 
 
 @router.post("/csv")
@@ -25,19 +34,21 @@ async def upload_csv(
     user_name = current_user["name"] or current_user["email"].split("@")[0]
 
     contents = await file.read()
-    df = parse_csv(contents)
 
     # Ensure we have a stable user_id that matches the graph's Person node
     # If the client passes an empty or placeholder id, derive one from the name.
     effective_user_id = user_id or make_id(user_name or "Me")
 
-    stats = build_graph(
-        df,
+    # Offload blocking I/O (HTTP lookups + Neo4j writes) to a thread pool
+    loop = asyncio.get_running_loop()
+    stats = await loop.run_in_executor(
+        None,
+        _parse_and_build,
+        contents,
         {
             "id": effective_user_id,
             "name": user_name,
             "title": user_title,
-            # Primary network belongs to this user id
             "is_user": True,
             "is_source": True,
             "network_name": "Primary Network",
@@ -73,7 +84,6 @@ async def upload_additional_network(
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
     contents = await file.read()
-    df = parse_csv(contents)
 
     # Derive a stable id for the source person
     source_person_id = make_id(source_name or "Imported Network", source_email or "")
@@ -81,8 +91,12 @@ async def upload_additional_network(
     # Network label shown in UI
     resolved_network_name = network_name or f"{source_name}'s Network"
 
-    stats = build_graph(
-        df,
+    # Offload blocking I/O to a thread pool
+    loop = asyncio.get_running_loop()
+    stats = await loop.run_in_executor(
+        None,
+        _parse_and_build,
+        contents,
         {
             "id": source_person_id,
             "name": source_name,
@@ -105,6 +119,30 @@ async def upload_additional_network(
         """,
             owner_id=owner_user_id,
             src_id=source_person_id,
+        )
+
+        # Remove connections that the primary user already has directly.
+        # We only want unique 2nd-degree connections from this secondary network.
+        db.run_write(
+            """
+            MATCH (owner:Person {id: $owner_id})-[:KNOWS]->(shared:Person)<-[:KNOWS]-(src:Person {id: $src_id})
+            WHERE shared.id <> $owner_id AND shared.id <> $src_id
+            WITH src, shared
+            MATCH (src)-[r:KNOWS]->(shared)
+            DELETE r
+        """,
+            owner_id=owner_user_id,
+            src_id=source_person_id,
+        )
+
+        # Also remove any company nodes that are now orphaned
+        # (no person connects to them anymore)
+        db.run_write(
+            """
+            MATCH (c:Company)
+            WHERE NOT EXISTS { ()-[:WORKS_AT]->(c) }
+            DETACH DELETE c
+        """,
         )
 
     return {

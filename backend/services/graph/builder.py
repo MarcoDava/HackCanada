@@ -7,9 +7,16 @@ CSV columns (LinkedIn export):
 import pandas as pd
 import hashlib
 import re
+import logging
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from db.neo4j_client import db
-from db.redis_client import redis_client
 from config import settings
+
+logger = logging.getLogger(__name__)
+
+# In-process cache for company domain lookups (survives across requests, cleared on restart)
+_company_url_cache: dict[str, str] = {}
 
 LOGO_DEV_TOKEN = settings.logo_dev_token
 
@@ -19,11 +26,6 @@ def company_to_logo_url(company_name: str) -> str:
     Guesses the domain from the company name (e.g. 'Google' -> 'google.com')."""
     if not company_name:
         return ""
-        
-    cache_key = f"logo:{company_name}"
-    cached = redis_client.get(cache_key)
-    if cached:
-        return cached
 
     # Clean the name: remove Inc, Ltd, Corp, LLC, etc.
     clean = re.sub(r'\b(inc|ltd|llc|corp|corporation|co|company|group|technologies|tech|software|solutions|labs|limited|plc)\b',
@@ -35,9 +37,64 @@ def company_to_logo_url(company_name: str) -> str:
         return ""
     domain = f"{slug}.com"
     url = f"https://img.logo.dev/{domain}?token={LOGO_DEV_TOKEN}&size=64"
-    
-    redis_client.setex(cache_key, 604800, url) # Cache for 7 days
     return url
+
+def company_to_url(company_name: str) -> str:
+    """Find the correct url of a company based on its name via Clearbit Autocomplete.
+    Results are cached in-process to avoid repeat HTTP calls for the same company."""
+    if not company_name:
+        return ""
+
+    # Check in-process cache first
+    if company_name in _company_url_cache:
+        return _company_url_cache[company_name]
+    
+    REQUEST_URL = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={company_name}"
+    try:
+        response = requests.get(REQUEST_URL, timeout=5)
+        response.raise_for_status()
+        suggestions = response.json()
+        if suggestions:
+            domain = suggestions[0].get("domain", "")
+            url = f"https://{domain}" if domain else ""
+            _company_url_cache[company_name] = url
+            return url
+    except requests.RequestException as e:
+        logger.warning("Error fetching company URL for '%s': %s", company_name, e)
+    
+    _company_url_cache[company_name] = ""
+    return ""
+
+
+def _resolve_company_urls_batch(company_names: list[str], max_workers: int = 10) -> dict[str, str]:
+    """Resolve URLs for a list of *unique* company names in parallel threads.
+    Uses the in-process cache and only makes HTTP calls for cache misses."""
+    results: dict[str, str] = {}
+    to_fetch: list[str] = []
+
+    for name in company_names:
+        if not name:
+            continue
+        if name in _company_url_cache:
+            results[name] = _company_url_cache[name]
+        else:
+            to_fetch.append(name)
+
+    if not to_fetch:
+        return results
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_name = {executor.submit(company_to_url, name): name for name in to_fetch}
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                results[name] = future.result()
+            except Exception as e:
+                logger.warning("Error resolving URL for '%s': %s", name, e)
+                results[name] = ""
+
+    return results
+
 
 def parse_csv(file_bytes: bytes) -> pd.DataFrame:
     import io
@@ -46,7 +103,13 @@ def parse_csv(file_bytes: bytes) -> pd.DataFrame:
     df.columns = df.columns.str.strip()
     df = df.fillna("")
     
+    # User-defined fields
     df["Initials"] = df["First Name"].str[0] + df["Last Name"].str[0]
+
+    # Deduplicate company names and resolve URLs in parallel
+    unique_companies = df["Company"].dropna().unique().tolist()
+    url_map = _resolve_company_urls_batch(unique_companies)
+    df["CompanyURL"] = df["Company"].map(url_map).fillna("")
     
     return df
 
@@ -150,6 +213,7 @@ def build_graph(df: pd.DataFrame, user: dict) -> dict:
 
         email = row.get("Email Address", "")
         company = row.get("Company", "").strip()
+        company_url = row.get("CompanyURL", "").strip()
         title = row.get("Position", "").strip()
         connected_on = row.get("Connected On", "")
         profile_url = row.get("URL", "")
@@ -167,6 +231,7 @@ def build_graph(df: pd.DataFrame, user: dict) -> dict:
             "name": name,
             "email": email,
             "company": company,
+            "company_url": company_url,
             "title": title,
             "connected_on": connected_on,
             "profile_url": profile_url,
@@ -199,7 +264,8 @@ def build_graph(df: pd.DataFrame, user: dict) -> dict:
         
         FOREACH (_ IN CASE WHEN row.company <> "" THEN [1] ELSE [] END |
             MERGE (comp:Company {name: row.company})
-            SET comp.logo = row.logo_url
+            SET comp.logo = row.logo_url,
+                comp.url = row.company_url
             MERGE (c)-[:WORKS_AT]->(comp)
         )
     """

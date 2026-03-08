@@ -1,7 +1,6 @@
 import base64
 import json
 import secrets
-import hashlib
 import httpx
 from fastapi import APIRouter, Request, Depends, HTTPException, Header
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -97,27 +96,13 @@ def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depe
         return None
 
 
-def generate_pkce_pair() -> tuple[str, str]:
-    """Generate PKCE code_verifier and code_challenge"""
-    code_verifier = secrets.token_urlsafe(32)
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).decode().rstrip("=")
-    return code_verifier, code_challenge
-
-
 @router.get("/login")
 async def login(request: Request):
     redirect_uri = request.url_for("auth_callback")
-    
-    code_verifier, code_challenge = generate_pkce_pair()
-    request.session["code_verifier"] = code_verifier
-    
+
     return await oauth.auth0.authorize_redirect(
-        request, 
+        request,
         redirect_uri,
-        code_challenge=code_challenge,
-        code_challenge_method="S256",
     )
 
 
@@ -290,12 +275,7 @@ async def refresh_token(request: Request):
 
 @router.get("/callback", name="auth_callback")
 async def auth_callback(request: Request):
-    code_verifier = request.session.get("code_verifier")
-    
-    token = await oauth.auth0.authorize_access_token(
-        request,
-        code_verifier=code_verifier
-    )
+    token = await oauth.auth0.authorize_access_token(request)
     user_info = token.get("userinfo") or {}
 
     email = user_info.get("email", "")
@@ -311,9 +291,7 @@ async def auth_callback(request: Request):
 
     user_b64 = base64.urlsafe_b64encode(json.dumps(user).encode()).decode()
     redirect_url = f"{settings.frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}&user={user_b64}"
-    
-    request.session.pop("code_verifier", None)
-    
+
     return RedirectResponse(url=redirect_url)
 
 

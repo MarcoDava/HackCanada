@@ -10,6 +10,7 @@ export default function GraphPage() {
   const router = useRouter()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [initialZoom, setInitialZoom] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isUIHidden, setIsUIHidden] = useState(false)
 
@@ -50,17 +51,17 @@ export default function GraphPage() {
         setInitialZoom(true)
       }
     }
-    
+
     function handleResize() {
       updateDimensions(isFullscreen)
     }
-    
+
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         exitFullscreen()
       }
     }
-    
+
     handleResize()
     window.addEventListener("resize", handleResize)
     window.addEventListener("keydown", handleKeyDown)
@@ -74,7 +75,7 @@ export default function GraphPage() {
     return (
       <div className="fixed inset-0 z-50 bg-dark-bg">
         <Graph width={dimensions.width} height={dimensions.height} initialZoom={initialZoom} />
-        
+
         {/* Fullscreen Controls - Always visible */}
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
           {isUIHidden && (
@@ -191,13 +192,25 @@ export default function GraphPage() {
                 <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
                 <span className="text-xs text-zinc-400">Company</span>
               </div>
+              <button
+                onClick={() => setActiveFilter(activeFilter === "recruiter" ? null : "recruiter")}
+                className={`flex items-center gap-2 px-2 py-1 -mx-2 -my-1 rounded-lg transition-colors ${activeFilter === "recruiter" ? "bg-emerald-500/20 ring-1 ring-emerald-500/40" : "hover:bg-white/5"
+                  }`}
+              >
+                <div className="w-3 h-3 rounded-full border-2 border-[#10B981] bg-transparent" />
+                <span className={`text-xs ${activeFilter === "recruiter" ? "text-emerald-400 font-medium" : "text-zinc-400"}`}>Recruiter</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full border-2 border-[#22D3EE] bg-transparent" />
+                <span className="text-xs text-zinc-400">Network Root</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Graph Container */}
         <div className="flex-1 rounded-2xl bg-dark-surface border border-dark-glassBorder overflow-hidden relative">
-          <Graph width={dimensions.width} height={dimensions.height} initialZoom={initialZoom} />
+          <Graph width={dimensions.width} height={dimensions.height} initialZoom={initialZoom} activeFilter={activeFilter} />
 
           {/* Edge labels info */}
           <div className="absolute bottom-4 left-4 flex gap-4 px-4 py-2 rounded-xl bg-dark-bg/80 backdrop-blur-sm border border-dark-glassBorder">
