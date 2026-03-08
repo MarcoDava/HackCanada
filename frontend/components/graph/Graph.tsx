@@ -235,6 +235,16 @@ export default function Graph({ width, height, initialZoom, default3D = false, a
   const [hasInitialZoomed, setHasInitialZoomed] = useState(false)
   const [is3D, setIs3D] = useState(default3D)
   const [isSwitchingMode, setIsSwitchingMode] = useState(false)
+  const switchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (isSwitchingMode) {
+      switchTimerRef.current = setTimeout(() => setIsSwitchingMode(false), 500)
+    }
+    return () => {
+      if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
+    }
+  }, [isSwitchingMode])
 
   // Collect all searchable names for autocomplete (companies + people)
   const searchableNames = useMemo(() => {
@@ -635,13 +645,11 @@ export default function Graph({ width, height, initialZoom, default3D = false, a
 
   return (
     <div className="relative w-full h-full">
-      {/* Mode Switching Overlay */}
+      {/* Mode Switching Banner */}
       {isSwitchingMode && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-dark-bg/90 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-zinc-400">Switching view mode...</p>
-          </div>
+        <div className="absolute inset-0 z-30 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-dark-bg/95 border border-dark-glassBorder shadow-lg">
+          <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-zinc-300">Switching to {is3D ? "3D" : "2D"}...</p>
         </div>
       )}
 
@@ -651,8 +659,10 @@ export default function Graph({ width, height, initialZoom, default3D = false, a
           onClick={() => {
             if (is3D) {
               setIsSwitchingMode(true)
-              setIs3D(false)
-              setHasInitialZoomed(false)
+              requestAnimationFrame(() => {
+                setIs3D(false)
+                setHasInitialZoomed(false)
+              })
             }
           }}
           className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-all ${
@@ -669,8 +679,10 @@ export default function Graph({ width, height, initialZoom, default3D = false, a
           onClick={() => {
             if (!is3D) {
               setIsSwitchingMode(true)
-              setIs3D(true)
-              setHasInitialZoomed(false)
+              requestAnimationFrame(() => {
+                setIs3D(true)
+                setHasInitialZoomed(false)
+              })
             }
           }}
           className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-all ${
