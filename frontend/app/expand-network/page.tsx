@@ -4,7 +4,7 @@ import axios from "axios"
 import { Upload, Users, Network, FileText, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
 import Sidebar from "@/components/Sidebar"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 type NetworkInfo = {
   id: string

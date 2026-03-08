@@ -7,7 +7,7 @@ import axios from "axios"
 import { useAuth } from "@/components/AuthContext"
 
 export default function LoginPage() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const router = useRouter()
   const { login } = useAuth()
   

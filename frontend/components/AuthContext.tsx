@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   getAccessToken: async () => null,
 })
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 function parseJwt(token: string): { exp: number } | null {
   try {
