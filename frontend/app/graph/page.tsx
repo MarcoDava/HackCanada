@@ -150,7 +150,7 @@ export default function GraphPage() {
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 p-6 flex flex-col">
+      <main className="flex-1 p-6 pb-20 md:pb-6 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">

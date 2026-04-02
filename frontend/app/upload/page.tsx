@@ -105,8 +105,8 @@ export default function UploadPage() {
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0a0a12]">
-        <div className="w-full max-w-lg mb-8 animate-fade-in">
+      <main className="flex-1 flex flex-col items-center p-6 pb-20 md:pb-6 overflow-auto bg-[#0a0a12]">
+        <div className="w-full max-w-lg mt-6 mb-8 animate-fade-in">
           <div className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mx-auto mb-6 shadow-glow">
               <Upload className="w-8 h-8 text-white" />
@@ -116,6 +116,46 @@ export default function UploadPage() {
               Export your connections from{" "}
               <span className="text-zinc-200">LinkedIn Settings → Data Privacy → Get a copy</span>
             </p>
+          </div>
+        </div>
+
+        {/* Tutorial */}
+        <div className="w-full max-w-lg mb-6 glass-card p-6">
+          <h2 className="text-base font-semibold text-white mb-4">How to export your LinkedIn connections</h2>
+
+          {/* Placeholder video */}
+          <div className="w-full aspect-video rounded-xl bg-dark-elevated border border-dark-glassBorder flex items-center justify-center mb-5">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-5 h-5 text-brand-400 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <p className="text-xs text-zinc-500">Tutorial video coming soon</p>
+            </div>
+          </div>
+
+          <ol className="space-y-3 text-sm text-zinc-400 list-decimal list-inside">
+            <li>Open <span className="text-zinc-200">LinkedIn</span> and go to <span className="text-zinc-200">Settings &amp; Privacy</span>.</li>
+            <li>Click <span className="text-zinc-200">Data Privacy</span> in the left menu.</li>
+            <li>Select <span className="text-zinc-200">Get a copy of your data</span>.</li>
+            <li>Choose <span className="text-zinc-200">Connections</span> (you don&apos;t need the full archive).</li>
+            <li>Click <span className="text-zinc-200">Request archive</span> — LinkedIn will email you a download link within a few minutes.</li>
+            <li>Download the ZIP, open it, and locate <span className="text-zinc-200">Connections.csv</span>.</li>
+            <li>Upload that file below.</li>
+          </ol>
+
+          {/* Placeholder screenshot */}
+          <div className="mt-5 w-full rounded-xl bg-dark-elevated border border-dark-glassBorder overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-glassBorder">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+              <div className="w-2.5 h-2.5 rounded-full bg-accent-amber/60" />
+              <div className="w-2.5 h-2.5 rounded-full bg-accent-emerald/60" />
+              <span className="text-xs text-zinc-600 ml-1">linkedin.com — Data Privacy</span>
+            </div>
+            <div className="p-6 flex items-center justify-center min-h-[120px]">
+              <p className="text-xs text-zinc-600 italic">Screenshot placeholder</p>
+            </div>
           </div>
         </div>
 

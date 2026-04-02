@@ -10,7 +10,7 @@ scrapfly = ScrapflyClient(key=settings.scrapfly_api_key)
 
 async def enrich_profile(profile_url: str) -> dict:
     """Fetch and parse a LinkedIn profile for enrichment data."""
-    if not profile_url or "linkedin.com" not in profile_url:
+    if not profile_url or not profile_url.startswith("https://www.linkedin.com/in/"):
         return {}
 
     try:

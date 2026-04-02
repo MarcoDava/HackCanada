@@ -281,7 +281,7 @@ export default function Dashboard() {
     <div className={`flex h-screen bg-dark-bg overflow-hidden ${isFullscreen ? "p-0" : ""}`}>
       {showUI && !isFullscreen && <Sidebar />}
 
-      <main className={`flex-1 overflow-auto transition-all duration-300 ${isFullscreen ? "p-0" : "p-6"}`}>
+      <main className={`flex-1 overflow-auto transition-all duration-300 ${isFullscreen ? "p-0" : "p-6 pb-20 md:pb-6"}`}>
         {/* Reveal UI Button */}
         {!showUI && !isFullscreen && (
           <button

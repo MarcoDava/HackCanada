@@ -1,4 +1,5 @@
 import secrets
+import logging
 import httpx
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -7,8 +8,13 @@ from authlib.integrations.starlette_client import OAuth
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from config import settings
 from services.graph.builder import make_id
+
+logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -108,8 +114,8 @@ def decode_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, settings.app_secret_key, algorithms=["HS256"])
         return payload
-    except JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 def get_current_user(
@@ -157,6 +163,7 @@ async def login(request: Request):
 
 
 @router.post("/login/password")
+@limiter.limit("5/minute")
 async def login_password(request: Request):
     """
     Login with email/password via Auth0.
@@ -227,10 +234,12 @@ async def login_password(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unexpected error during password login")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/signup")
+@limiter.limit("3/minute")
 async def signup(request: Request):
     try:
         data = await request.json()
@@ -280,10 +289,12 @@ async def signup(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Unexpected error during signup")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/refresh")
+@limiter.limit("10/minute")
 async def refresh_token(request: Request):
     """Exchange a refresh token for a new access token"""
     try:

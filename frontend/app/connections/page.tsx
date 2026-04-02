@@ -108,7 +108,7 @@ export default function ConnectionsPage() {
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-6 pb-20 md:pb-6 overflow-auto">
         <div className="max-w-5xl mx-auto">
           <div className="sticky top-0 z-30 bg-dark-bg/95 backdrop-blur-sm -mx-6 px-6 pt-2 pb-6 border-b border-dark-glassBorder mb-8">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

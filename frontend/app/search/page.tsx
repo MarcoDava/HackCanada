@@ -168,7 +168,7 @@ function SearchPageInner() {
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-6 pb-20 md:pb-6 overflow-auto">
         <div className="max-w-5xl mx-auto animate-fade-in">
           <div className="sticky top-0 z-30 bg-dark-bg/95 backdrop-blur-sm -mx-6 px-6 pt-2 pb-6 border-b border-dark-glassBorder mb-8">
             <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-white transition-colors mb-4">
@@ -413,7 +413,7 @@ function SearchPageInner() {
                   ) : (
                     <p className="text-sm text-zinc-500 text-center py-8">Search a company and click &quot;Draft Message&quot; to generate an AI outreach message.</p>
                   )}
-                  <p className="text-xs text-zinc-500 text-center mt-3">Powered by Gemini</p>
+                  <p className="text-xs text-zinc-500 text-center mt-3">AI-powered outreach</p>
                 </div>
               </div>
             </div>

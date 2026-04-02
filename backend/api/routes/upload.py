@@ -28,11 +28,16 @@ async def upload_csv(
     """
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
+    if file.content_type not in ("text/csv", "application/csv", "application/octet-stream", "text/plain"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
 
     user_id = current_user["id"]
     user_name = current_user["name"] or current_user["email"].split("@")[0]
 
+    MAX_CSV_BYTES = 10 * 1024 * 1024  # 10 MB
     contents = await file.read()
+    if len(contents) > MAX_CSV_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
     # Ensure we have a stable user_id that matches the graph's Person node
     # If the client passes an empty or placeholder id, derive one from the name.
@@ -81,6 +86,8 @@ async def upload_additional_network(
     """
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
+    if file.content_type not in ("text/csv", "application/csv", "application/octet-stream", "text/plain"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
 
     owner_user_id = current_user["id"]
     owner_rows = db.run(
@@ -98,7 +105,10 @@ async def upload_additional_network(
             detail="Upload your own Connections.csv first before adding trusted networks.",
         )
 
+    MAX_CSV_BYTES = 10 * 1024 * 1024  # 10 MB
     contents = await file.read()
+    if len(contents) > MAX_CSV_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
     # Derive a stable id for the source person
     source_person_id = make_scoped_id(
