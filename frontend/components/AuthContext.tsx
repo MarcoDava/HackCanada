@@ -15,7 +15,6 @@ interface AuthContextType {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (user: User) => void
   logout: () => void
   refreshSession: () => Promise<User | null>
 }
@@ -25,7 +24,6 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   isAuthenticated: false,
   isLoading: true,
-  login: () => {},
   logout: () => {},
   refreshSession: async () => null,
 })
@@ -53,11 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  const login = useCallback((newUser: User) => {
-    persistUser(newUser)
-    setUser(newUser)
-  }, [])
 
   const logout = useCallback(() => {
     void axios.post(`${API_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => undefined)
@@ -122,7 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token: null,
         isAuthenticated: !!user,
         isLoading,
-        login,
         logout,
         refreshSession,
       }}

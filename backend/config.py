@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     auth0_client_id: str
     auth0_client_secret: str
     app_secret_key: str
-    frontend_url: str = "https://frontend-khaki-tau-ihs8fvzka5.vercel.app/"
+    frontend_url: str = "https://networkify.live"
 
     model_config = SettingsConfigDict(
         env_file=".env",
