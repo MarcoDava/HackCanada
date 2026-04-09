@@ -161,9 +161,17 @@ def get_optional_user(
         return None
 
 
+def _backend_callback_url(request: Request) -> str:
+    """Build the Auth0 callback URL, forcing HTTPS regardless of Railway's internal proxy scheme."""
+    url = str(request.url_for("auth_callback"))
+    if url.startswith("http://"):
+        url = "https://" + url[len("http://"):]
+    return url
+
+
 @router.get("/login")
 async def login(request: Request):
-    redirect_uri = request.url_for("auth_callback")
+    redirect_uri = _backend_callback_url(request)
 
     return await oauth.auth0.authorize_redirect(
         request,
