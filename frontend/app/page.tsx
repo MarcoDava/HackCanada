@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Waypoints, Network, Users, Home as HomeIcon, Upload, Search } from "lucide-react"
+import { ArrowRight, Network, Users, Home as HomeIcon, Upload, Search } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/AuthContext"
 
@@ -77,7 +77,7 @@ export default function Home() {
         <div className="text-center max-w-4xl mx-auto">
           {/* Small label */}
           <div className="inline-flex items-center gap-2 text-xs tracking-[0.15em] text-purple-400/80 uppercase mb-8">
-            <Waypoints className="w-3.5 h-3.5" />
+            <img src="/logo.png" alt="Networkify" className="w-4 h-4 object-contain" />
             <span>Networkify</span>
           </div>
 

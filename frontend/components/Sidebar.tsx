@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Waypoints, Home, Users, Upload, Search, GitGraph, LogOut, UserPlus } from "lucide-react"
+import { Home, Users, Upload, Search, GitGraph, LogOut, UserPlus } from "lucide-react"
 import { useAuth } from "./AuthContext"
 
 const navItems = [
@@ -21,8 +21,8 @@ export default function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-20 bg-dark-surface border-r border-dark-glassBorder flex-col items-center py-6 gap-2 shrink-0">
-        <Link href="/" className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center mb-8 shadow-glow">
-          <Waypoints className="w-6 h-6 text-white" />
+        <Link href="/" className="w-12 h-12 rounded-2xl mb-8 flex items-center justify-center">
+          <img src="/logo.png" alt="Networkify" className="w-12 h-12 object-contain" />
         </Link>
 
         <nav className="flex-1 flex flex-col gap-2">

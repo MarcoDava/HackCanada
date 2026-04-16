@@ -1,6 +1,5 @@
 "use client"
 import Link from "next/link"
-import { Waypoints } from "lucide-react"
 
 export default function LoginPage() {
   // Use a same-origin URL so the Vercel rewrite proxies /auth/login to
@@ -39,9 +38,7 @@ export default function LoginPage() {
         {/* Logo / Brand */}
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex items-center gap-3 mb-8 group">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-all">
-              <Waypoints className="w-6 h-6 text-white" />
-            </div>
+            <img src="/logo.png" alt="Networkify" className="w-12 h-12 object-contain" />
             <span className="text-xl font-semibold text-white tracking-tight">Networkify</span>
           </Link>
 
